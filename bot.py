@@ -9,7 +9,7 @@ import docx
 from google import genai
 from google.genai import types as genai_types
 
-# 1. Инициализация ботов и ключей из переменных окружения
+# 1. Токены из переменных окружения Render
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
@@ -17,7 +17,7 @@ bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher()
 gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 
-# 2. Системный промпт для юридического анализа
+# 2. Промпт для ИИ
 SYSTEM_PROMPT = """
 Ты — профессиональный юридический ассистент, специализирующийся на анализе договоров для фрилансеров и IT-специалистов.
 Проанализируй предоставленный текст договора и верни ответ СТРОГО в формате JSON без кавычек markdown (```json).
@@ -31,20 +31,23 @@ SYSTEM_PROMPT = """
 }
 """
 
-# 3. Минимальный веб-сервер для прохождения Health Check на Render
+# 3. Веб-сервер для прохождения проверки Render (Health Check)
 async def handle_health_check(request):
-    return web.Response(text="LegalGuard Bot is live and running!")
+    return web.Response(text="LegalGuard Bot is live and healthy!")
 
 async def start_web_server():
     app = web.Application()
     app.router.add_get("/", handle_health_check)
     runner = web.AppRunner(app)
     await runner.setup()
+    
+    # Render передает порт через переменную PORT, по умолчанию 10000
     port = int(os.environ.get("PORT", 10000))
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
+    print(f" Web server successfully started on port {port}")
 
-# 4. Обработчик команды /start
+# 4. Обработчик /start
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message):
     await message.answer(
@@ -53,10 +56,10 @@ async def cmd_start(message: types.Message):
         "и я найду подводные камни и риски!"
     )
 
-# 5. Функция обращения к Gemini API
+# 5. Вызов модели Gemini
 async def analyze_text_with_gemini(text: str) -> str:
     response = gemini_client.models.generate_content(
-        model="gemini-1.5-flash",
+        model="gemini-2.5-flash",
         contents=f"Проанализируй договор:\n\n{text}",
         config=genai_types.GenerateContentConfig(
             system_instruction=SYSTEM_PROMPT,
@@ -64,7 +67,8 @@ async def analyze_text_with_gemini(text: str) -> str:
         ),
     )
     return response.text
-# 6. Вспомогательная функция форматирования JSON-ответа
+
+# 6. Форматирование ответа
 def format_analysis_response(json_str: str) -> str:
     try:
         clean_str = json_str.replace("```json", "").replace("```", "").strip()
@@ -85,7 +89,7 @@ def format_analysis_response(json_str: str) -> str:
     except Exception:
         return f"📋 **Результат анализа:**\n\n{json_str}"
 
-# 7. Обработка текстовых сообщений
+# 7. Обработка сообщений с текстом
 @dp.message(F.text)
 async def handle_text(message: types.Message):
     status_msg = await message.answer("🔍 Анализирую текст договора... Подождите 5-10 секунд.")
@@ -96,7 +100,7 @@ async def handle_text(message: types.Message):
     except Exception as e:
         await status_msg.edit_text(f"❌ Ошибка при анализе: {str(e)}")
 
-# 8. Обработка документов PDF и DOCX
+# 8. Обработка файлов PDF и DOCX
 @dp.message(F.document)
 async def handle_document(message: types.Message):
     doc_name = message.document.file_name.lower()
@@ -138,7 +142,7 @@ async def handle_document(message: types.Message):
         if os.path.exists(file_path):
             os.remove(file_path)
 
-# 9. Главная точка запуска
+# 9. Точка входа: одновременно запускаем веб-сервер и бота Telegram
 async def main():
     await start_web_server()
     await dp.start_polling(bot)
