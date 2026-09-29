@@ -62,14 +62,10 @@ async def analyze_text_with_gemini(text: str) -> str:
     
     for attempt in range(max_retries):
         try:
-            # Использование Interactions API для обхода перегрузок и ошибок 503
             interaction = gemini_client.interactions.create(
                 model="gemini-3.8-flash",
                 input=f"Проанализируй договор:\n\n{text}",
-                config=genai_types.GenerateContentConfig(
-                    system_instruction=SYSTEM_PROMPT,
-                    temperature=0.2,
-                ),
+                system_instruction=SYSTEM_PROMPT,
             )
             return interaction.outputs[-1].text
         except Exception as e:
