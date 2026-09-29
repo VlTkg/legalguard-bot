@@ -56,7 +56,7 @@ async def cmd_start(message: types.Message):
 # 5. Функция обращения к Gemini API
 async def analyze_text_with_gemini(text: str) -> str:
     response = gemini_client.models.generate_content(
-        model="gemini-2.5-flash",
+        model="gemini-3.8-flash",
         contents=f"Проанализируй договор:\n\n{text}",
         config=genai_types.GenerateContentConfig(
             system_instruction=SYSTEM_PROMPT,
