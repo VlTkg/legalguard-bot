@@ -56,32 +56,17 @@ async def cmd_start(message: types.Message):
         "и я найду подводные камни и риски!"
     )
 
-# 5.Вызов модели Gemini
+# 5. Вызов модели Gemini
 async def analyze_text_with_gemini(text: str) -> str:
-    # Использование современной стабильной модели Gemini 2.0 Flash
-    models_to_try = [
-        "gemini-2.0-flash",
-        "gemini-2.0-flash-lite",
-        "gemini-1.5-flash-8b"
-    ]
-    
-    last_error = None
-    for model_name in models_to_try:
-        try:
-            response = gemini_client.models.generate_content(
-                model=model_name,
-                contents=f"Проанализируй договор:\n\n{text}",
-                config=genai_types.GenerateContentConfig(
-                    system_instruction=SYSTEM_PROMPT,
-                    temperature=0.2,
-                ),
-            )
-            return response.text
-        except Exception as e:
-            last_error = e
-            continue
-
-    raise last_error
+    response = gemini_client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=f"Проанализируй договор:\n\n{text}",
+        config=genai_types.GenerateContentConfig(
+            system_instruction=SYSTEM_PROMPT,
+            temperature=0.2,
+        ),
+    )
+    return response.text
 # 6. Форматирование ответа
 def format_analysis_response(json_str: str) -> str:
     try:
