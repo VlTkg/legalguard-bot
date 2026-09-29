@@ -63,7 +63,7 @@ async def analyze_text_with_gemini(text: str) -> str:
     for attempt in range(max_retries):
         try:
             interaction = gemini_client.interactions.create(
-                model="gemini-3.8-flash",
+                model="gemini-2.0-flash",
                 input=f"Проанализируй договор:\n\n{text}",
                 system_instruction=SYSTEM_PROMPT,
             )
