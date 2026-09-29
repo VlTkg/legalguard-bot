@@ -56,17 +56,29 @@ async def cmd_start(message: types.Message):
         "и я найду подводные камни и риски!"
     )
 
-# 5. Вызов модели Gemini
+# 5. Вызов модели Gemini с автоматическим повтором при перегрузке (Retry)
 async def analyze_text_with_gemini(text: str) -> str:
-    response = gemini_client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=f"Проанализируй договор:\n\n{text}",
-        config=genai_types.GenerateContentConfig(
-            system_instruction=SYSTEM_PROMPT,
-            temperature=0.2,
-        ),
-    )
-    return response.text
+    # Используем строго поддерживаемую модель gemini-3.8-flash
+    model_name = "gemini-3.8-flash"
+    max_retries = 3
+    
+    for attempt in range(max_retries):
+        try:
+            response = gemini_client.models.generate_content(
+                model=model_name,
+                contents=f"Проанализируй договор:\n\n{text}",
+                config=genai_types.GenerateContentConfig(
+                    system_instruction=SYSTEM_PROMPT,
+                    temperature=0.2,
+                ),
+            )
+            return response.text
+        except Exception as e:
+            # Если это последняя попытка — выбрасываем ошибку
+            if attempt == max_retries - 1:
+                raise e
+            # Если сервер перегружен (503) или произошла ошибка, ждем 2 секунды и пробуем снова
+            await asyncio.sleep(2)
 # 6. Форматирование ответа
 def format_analysis_response(json_str: str) -> str:
     try:
