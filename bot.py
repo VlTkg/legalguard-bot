@@ -56,13 +56,13 @@ async def cmd_start(message: types.Message):
         "и я найду подводные камни и риски!"
     )
 
-# 5. # 5. Вызов модели Gemini
+# 5.Вызов модели Gemini
 async def analyze_text_with_gemini(text: str) -> str:
-    # Перебираем актуальные модели по приоритету
+    # Использование современной стабильной модели Gemini 2.0 Flash
     models_to_try = [
-        "gemini-3.8-flash",
-        "gemini-2.5-flash",
-        "gemini-1.5-flash"
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-lite",
+        "gemini-1.5-flash-8b"
     ]
     
     last_error = None
@@ -79,7 +79,6 @@ async def analyze_text_with_gemini(text: str) -> str:
             return response.text
         except Exception as e:
             last_error = e
-            # Если возникла ошибка 404 или 503, пробуем следующую модель из списка
             continue
 
     raise last_error
