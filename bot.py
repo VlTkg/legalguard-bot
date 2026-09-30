@@ -25,26 +25,75 @@ if not TELEGRAM_TOKEN or not GEMINI_API_KEY:
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher()
 
+# Хранилища временных данных пользователей
 USER_REPORTS = {}
+USER_CONTRACT_TYPES = {}
+
 gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 
-SYSTEM_PROMPT = """
+# Промпты под разные типы договоров
+PROMPTS = {
+    "dev": """
+Ты — юрист, специализирующийся на договорах в IT, дизайне и разработке ПО (Авторский заказ/GDM).
+Проанализируй договор с фокусом на:
+- Момент перехода исключительных прав (должен быть строго ПОСЛЕ 100% оплаты).
+- Сохранение за исполнителем его наработок, библиотек, исходного кода и личных проектов.
+- Четкие критерии приемки работ и лимит итераций правок.
+- Отсутствие отчуждения личных активов и нереалистичных сроков.
+
+Структура ответа:
+1. 🚩 **Критические риски для разработчика/дизайнера**
+2. 🛠 **Рекомендации по правкам**
+
+В самом конце ответа добавь специальный блок для формирования таблицы разногласий. 
+Он должен начинаться СТРОГО с метки `---PROTOCOL---` и содержать строки в формате:
+Пункт договора || Исходная редакция || Предлагаемая редакция || Комментарий
+""",
+    "nda": """
+Ты — юрист, специализирующийся на соглашениях о конфиденциальности (NDA).
+Проанализируй NDA с фокусом на:
+- Четкость определения "Конфиденциальной информации" (не всё подряд).
+- Разумные сроки действия режимa конфиденциальности (оптимально 1-3 года).
+- Соразмерность штрафов и ответственности за неумышленную разглашение.
+- Исключения из конфиденциальности (общедоступные сведения, законные требования госорганов).
+
+Структура ответа:
+1. 🚩 **Скрытые риски и "ловушки" в NDA**
+2. 🛠 **Рекомендации по защите**
+
+В самом конце ответа добавь специальный блок для формирования таблицы разногласий. 
+Он должен начинаться СТРОГО с метки `---PROTOCOL---` и содержать строки в формате:
+Пункт договора || Исходная редакция || Предлагаемая редакция || Комментарий
+""",
+    "services": """
+Ты — юрист для фрилансеров и самозанятых, оказывающих услуги.
+Проанализируй договор с фокусом на:
+- Сроки оплаты (не более 5-10 рабочих дней, предотвращение кассовых разрывов).
+- Порядок одностороннего расторжения (компенсация фактически понесенных расходов).
+- Несоразмерные штрафы за просрочки сдачи.
+- Четкое ограничение объема услуг и предотвращение "бесплатного расширения ТЗ".
+
+Структура ответа:
+1. 🚩 **Финансовые и юридические риски**
+2. 🛠 **Рекомендации**
+
+В самом конце ответа добавь специальный блок для формирования таблицы разногласий. 
+Он должен начинаться СТРОГО с метки `---PROTOCOL---` и содержать строки в формате:
+Пункт договора || Исходная редакция || Предлагаемая редакция || Комментарий
+""",
+    "general": """
 Ты — профессиональный юридический ассистент для фрилансеров и исполнителей.
 Твоя задача — найти скрытые риски в договоре и предложить их исправление.
 
 Ответь строго по следующей структуре:
-1. 🚩 **Найденные риски** (с указанием пунктов договора и объяснением человеческим языком).
+1. 🚩 **Найденные риски** (с указанием пунктов договора).
 2. 🛠 **Рекомендации** (как защитить себя).
 
 В самом конце ответа добавь специальный блок для формирования таблицы разногласий. 
 Он должен начинаться СТРОГО с метки `---PROTOCOL---` и содержать строки в формате:
 Пункт договора || Исходная редакция || Предлагаемая редакция || Комментарий
-
-Пример блока:
----PROTOCOL---
-п. 7.2 || Штраф 100% за задержку на 1 час || Пеня 0.1% за каждый день просрочки, но не более 10% || Защита от неоплаты за минимальное отклонение от графика.
-п. 7.5 || Оплата в течение 180 дней || Оплата в течение 5 рабочих дней || Предотвращение кассового разрыва.
 """
+}
 
 # 2. Встроенный веб-сервер
 async def handle_health(request):
@@ -67,7 +116,8 @@ def extract_text_from_docx(docx_bytes: bytes) -> str:
     doc = Document(io.BytesIO(docx_bytes))
     return "\n".join([p.text for p in doc.paragraphs if p.text])
 
-async def analyze_text_with_gemini(text: str) -> str:
+async def analyze_text_with_gemini(text: str, contract_type: str = "general") -> str:
+    system_instruction = PROMPTS.get(contract_type, PROMPTS["general"])
     max_retries = 3
     for attempt in range(max_retries):
         try:
@@ -75,7 +125,7 @@ async def analyze_text_with_gemini(text: str) -> str:
                 model="gemini-3.8-flash",
                 contents=f"Проанализируй договор:\n\n{text}",
                 config=genai_types.GenerateContentConfig(
-                    system_instruction=SYSTEM_PROMPT,
+                    system_instruction=system_instruction,
                     temperature=0.2,
                 ),
             )
@@ -109,10 +159,20 @@ def create_protocol_docx(protocol_data: list) -> bytes:
     doc.save(file_stream)
     return file_stream.getvalue()
 
-async def process_and_reply(message: types.Message, text: str):
-    status_msg = await message.answer("⚖️ Анализирую договор с помощью Gemini...")
+def get_type_keyboard():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💻 Разработка ПО / Дизайн", callback_data="type_dev")],
+        [InlineKeyboardButton(text="🤐 NDA (Конфиденциальность)", callback_data="type_nda")],
+        [InlineKeyboardButton(text="🛠 Оказание услуг / Фриланс", callback_data="type_services")],
+        [InlineKeyboardButton(text="📄 Общий / Другой договор", callback_data="type_general")]
+    ])
+
+async def process_and_reply(message: types.Message, text: str, user_id: int):
+    contract_type = USER_CONTRACT_TYPES.get(user_id, "general")
+    status_msg = await message.answer("⚖️ Провожу специализированный анализ с помощью Gemini...")
+    
     try:
-        analysis_result = await analyze_text_with_gemini(text)
+        analysis_result = await analyze_text_with_gemini(text, contract_type)
         
         main_text = analysis_result
         protocol_items = []
@@ -123,7 +183,7 @@ async def process_and_reply(message: types.Message, text: str):
             raw_protocol = parts[1].strip().split("\n")
             protocol_items = [line for line in raw_protocol if "||" in line]
 
-        USER_REPORTS[message.from_user.id] = protocol_items
+        USER_REPORTS[user_id] = protocol_items
 
         kb = None
         if protocol_items:
@@ -131,7 +191,6 @@ async def process_and_reply(message: types.Message, text: str):
                 [InlineKeyboardButton(text="📄 Скачать Протокол разногласий (.docx)", callback_data="get_protocol")]
             ])
 
-        # Без parse_mode, чтобы предотвратить ошибки форматирования Telegram
         await status_msg.edit_text(main_text, reply_markup=kb)
 
     except Exception as e:
@@ -141,16 +200,31 @@ async def process_and_reply(message: types.Message, text: str):
 # 4. Обработчики
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message):
-    logging.info(f"Received /start from {message.from_user.id}")
+    USER_CONTRACT_TYPES[message.from_user.id] = "general"
     await message.answer(
-        "👋 Привет! Я LegalGuard — твой юридический ассистент.\n\n"
-        "Отправь мне файл договора (PDF или DOCX) или просто вставь текст договора сообщением.\n\n"
-        "⚠️ Обратите внимание: сервис предоставляет автоматизированный первичный анализ и не является юридической консультацией."
+        "👋 Привет! Я **LegalGuard** — твой юридический ассистент.\n\n"
+        "Выбери тип договора для более точной проверки или сразу отправь мне файл (PDF/DOCX) / текст договора:\n\n"
+        "⚠️ *Сервис предоставляет автоматизированный первичный анализ и не является квалифицированной юридической консультацией.*",
+        reply_markup=get_type_keyboard()
     )
+
+@dp.callback_query(F.data.startswith("type_"))
+async def set_contract_type(callback: CallbackQuery):
+    ctype = callback.data.split("_")[1]
+    USER_CONTRACT_TYPES[callback.from_user.id] = ctype
+    
+    names = {
+        "dev": "Разработка ПО / Дизайн",
+        "nda": "NDA (Конфиденциальность)",
+        "services": "Оказание услуг / Фриланс",
+        "general": "Общий договор"
+    }
+    
+    await callback.answer(f"Выбран режим: {names.get(ctype)}")
+    await callback.message.answer(f"✅ Установлен режим проверки: **{names.get(ctype)}**.\n\nТеперь отправь мне файл договора (PDF/DOCX) или вставь текст сообщением.")
 
 @dp.message(F.document)
 async def handle_document(message: types.Message):
-    logging.info(f"Received document: {message.document.file_name}")
     file_name = message.document.file_name.lower()
     if not (file_name.endswith('.pdf') or file_name.endswith('.docx')):
         await message.answer("Пожалуйста, отправьте файл в формате PDF или DOCX.")
@@ -171,7 +245,7 @@ async def handle_document(message: types.Message):
             return
 
         await status_msg.delete()
-        await process_and_reply(message, text)
+        await process_and_reply(message, text, message.from_user.id)
 
     except Exception as e:
         logging.error(f"Error downloading document: {e}")
@@ -179,11 +253,10 @@ async def handle_document(message: types.Message):
 
 @dp.message(F.text)
 async def handle_text(message: types.Message):
-    logging.info(f"Received text message from {message.from_user.id}")
     if len(message.text.strip()) < 20:
-        await message.answer("Пожалуйста, отправьте более подробный текст договора для анализа.")
+        await message.answer("Пожалуйста, выберите тип договора по кнопкам выше или отправьте более подробный текст договора.")
         return
-    await process_and_reply(message, message.text)
+    await process_and_reply(message, message.text, message.from_user.id)
 
 @dp.callback_query(F.data == "get_protocol")
 async def send_protocol_file(callback: CallbackQuery):
@@ -203,7 +276,6 @@ async def send_protocol_file(callback: CallbackQuery):
 # 5. Главный запуск
 async def main():
     await start_web_server()
-    # Удаляем старые вебхуки для очистки каналов получения сообщений
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
