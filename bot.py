@@ -177,43 +177,39 @@ def extract_text_from_docx(docx_bytes: bytes) -> str:
 async def analyze_text_with_gemini(text: str, contract_type: str = "general") -> str:
     system_instruction = PROMPTS.get(contract_type, PROMPTS["general"])
     
-    # Цепочка моделей от приоритетных к более легким/резервным
+    # Только существующие модели в линейке Gemini 1.5
     models_to_try = [
         "gemini-1.5-flash",
-        "gemini-1.5-flash-8b",
-        "gemini-1.5-pro"
+        "gemini-1.5-flash-8b"
     ]
     
     last_exception = None
 
     for model_name in models_to_try:
-        max_retries = 4
+        max_retries = 3
         for attempt in range(max_retries):
             try:
                 logging.info(f"Sending request to {model_name} (attempt {attempt + 1})...")
                 response = gemini_client.models.generate_content(
                     model=model_name,
-                    contents=f"Проанализируй договор:\n\n{text}",
-                    config=genai_types.GenerateContentConfig(
-                        system_instruction=system_instruction,
-                        temperature=0.2,
-                    ),
+                    contents=f"{system_instruction}\n\nПроанализируй договор:\n\n{text}",
                 )
-                return response.text
+                if response and response.text:
+                    return response.text
             except Exception as e:
                 last_exception = e
                 err_msg = str(e)
                 
-                # Проверка на перегрузку (503 / 429 / High demand)
+                # Проверка на перегрузку/лимит запросов
                 if any(code in err_msg for code in ["503", "429", "UNAVAILABLE", "overloaded", "demand"]):
-                    sleep_time = (2 ** attempt) * 2 + random.uniform(1, 3)  # Паузы: ~3s, ~6s, ~11s, ~20s
-                    logging.warning(f"Model {model_name} busy/overloaded. Retrying in {sleep_time:.1f}s...")
+                    sleep_time = (attempt + 1) * 3 + random.uniform(1, 2)
+                    logging.warning(f"Model {model_name} busy. Retrying in {sleep_time:.1f}s...")
                     await asyncio.sleep(sleep_time)
                 else:
-                    logging.error(f"Non-retryable error on {model_name}: {e}")
+                    logging.error(f"Error on {model_name}: {e}")
                     break
 
-    raise Exception(f"Серверы Google Gemini сейчас сильно перегружены. Попробуйте ещё раз через 1–2 минуты. ({last_exception})")
+    raise Exception(f"Серверы Google Gemini сейчас перегружены или недоступны. Попробуйте еще раз через 1–2 минуты. ({last_exception})")
 
 def create_protocol_docx(protocol_data: list) -> bytes:
     doc = Document()
