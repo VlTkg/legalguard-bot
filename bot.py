@@ -177,10 +177,10 @@ def extract_text_from_docx(docx_bytes: bytes) -> str:
 async def analyze_text_with_gemini(text: str, contract_type: str = "general") -> str:
     system_instruction = PROMPTS.get(contract_type, PROMPTS["general"])
     
-    # Только существующие модели в линейке Gemini 1.5
+    # Актуальные стандартизированные модели
     models_to_try = [
-        "gemini-1.5-flash",
-        "gemini-1.5-flash-8b"
+        "gemini-2.0-flash",
+        "gemini-1.5-flash"
     ]
     
     last_exception = None
@@ -199,17 +199,17 @@ async def analyze_text_with_gemini(text: str, contract_type: str = "general") ->
             except Exception as e:
                 last_exception = e
                 err_msg = str(e)
+                logging.warning(f"Error on {model_name}: {err_msg}")
                 
-                # Проверка на перегрузку/лимит запросов
+                # Если перегруз или исчерпан лимит скорости
                 if any(code in err_msg for code in ["503", "429", "UNAVAILABLE", "overloaded", "demand"]):
                     sleep_time = (attempt + 1) * 3 + random.uniform(1, 2)
-                    logging.warning(f"Model {model_name} busy. Retrying in {sleep_time:.1f}s...")
                     await asyncio.sleep(sleep_time)
                 else:
-                    logging.error(f"Error on {model_name}: {e}")
+                    # Если это другая ошибка (например, 404), переходим к следующей модели
                     break
 
-    raise Exception(f"Серверы Google Gemini сейчас перегружены или недоступны. Попробуйте еще раз через 1–2 минуты. ({last_exception})")
+    raise Exception(f"Не удалось получить ответ от Gemini. Ошибка: {last_exception}")
 
 def create_protocol_docx(protocol_data: list) -> bytes:
     doc = Document()
