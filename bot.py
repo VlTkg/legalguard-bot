@@ -63,7 +63,6 @@ def check_and_update_limit(user_id: int, username: str, first_name: str) -> tupl
     row = cursor.fetchone()
     
     if not row:
-        # Новый пользователь
         cursor.execute(
             "INSERT INTO users (user_id, username, first_name, created_at, daily_usage, last_usage_date) VALUES (?, ?, ?, ?, 1, ?)",
             (user_id, username, first_name, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), today)
@@ -75,7 +74,6 @@ def check_and_update_limit(user_id: int, username: str, first_name: str) -> tupl
     daily_usage, last_usage_date = row
     
     if last_usage_date != today:
-        # Новый день — сбрасываем счетчик
         cursor.execute("UPDATE users SET daily_usage = 1, last_usage_date = ? WHERE user_id = ?", (today, user_id))
         conn.commit()
         conn.close()
@@ -177,23 +175,35 @@ def extract_text_from_docx(docx_bytes: bytes) -> str:
 
 async def analyze_text_with_gemini(text: str, contract_type: str = "general") -> str:
     system_instruction = PROMPTS.get(contract_type, PROMPTS["general"])
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            response = gemini_client.models.generate_content(
-                model="gemini-3.8-flash",
-                contents=f"Проанализируй договор:\n\n{text}",
-                config=genai_types.GenerateContentConfig(
-                    system_instruction=system_instruction,
-                    temperature=0.2,
-                ),
-            )
-            return response.text
-        except Exception as e:
-            if attempt < max_retries - 1:
-                await asyncio.sleep(5)
-                continue
-            raise e
+    
+    # Резервная цепочка моделей на случай перегрузки основного инстанса
+    models_to_try = ["gemini-3.8-flash", "gemini-1.5-flash"]
+    
+    for model_name in models_to_try:
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                logging.info(f"Sending request to {model_name} (attempt {attempt + 1})...")
+                response = gemini_client.models.generate_content(
+                    model=model_name,
+                    contents=f"Проанализируй договор:\n\n{text}",
+                    config=genai_types.GenerateContentConfig(
+                        system_instruction=system_instruction,
+                        temperature=0.2,
+                    ),
+                )
+                return response.text
+            except Exception as e:
+                err_msg = str(e)
+                if "503" in err_msg or "UNAVAILABLE" in err_msg or "high demand" in err_msg.lower():
+                    sleep_time = (attempt + 1) * 5  # Паузы: 5s, 10s, 15s
+                    logging.warning(f"Model {model_name} busy (503). Retrying in {sleep_time}s...")
+                    await asyncio.sleep(sleep_time)
+                else:
+                    logging.error(f"Error on {model_name}: {e}")
+                    break
+
+    raise Exception("Серверы Google Gemini сейчас сильно перегружены. Пожалуйста, повторите запрос через 1–2 минуты.")
 
 def create_protocol_docx(protocol_data: list) -> bytes:
     doc = Document()
@@ -227,7 +237,6 @@ def get_type_keyboard():
     ])
 
 async def process_and_reply(message: types.Message, text: str, user_id: int):
-    # Проверка лимитов БД
     allowed, remaining = check_and_update_limit(
         user_id=user_id,
         username=message.from_user.username or "",
@@ -350,7 +359,7 @@ async def send_protocol_file(callback: CallbackQuery):
 
 # 7. Главный запуск
 async def main():
-    init_db()  # Инициализация базы данных SQLite
+    init_db()
     await start_web_server()
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
