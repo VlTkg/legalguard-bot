@@ -2,6 +2,8 @@ import asyncio
 import io
 import os
 import logging
+import sqlite3
+from datetime import datetime
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import CommandStart
 from aiogram.types import BufferedInputFile, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
@@ -18,6 +20,7 @@ logging.basicConfig(level=logging.INFO)
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 PORT = int(os.environ.get("PORT", 10000))
+DAILY_LIMIT = 3  # Бесплатный дневной лимит проверок
 
 if not TELEGRAM_TOKEN or not GEMINI_API_KEY:
     raise ValueError("Переменные окружения TELEGRAM_TOKEN или GEMINI_API_KEY не заданы!")
@@ -25,13 +28,69 @@ if not TELEGRAM_TOKEN or not GEMINI_API_KEY:
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher()
 
-# Хранилища временных данных пользователей
+# Хранилища временных данных
 USER_REPORTS = {}
 USER_CONTRACT_TYPES = {}
 
 gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 
-# Промпты под разные типы договоров
+# 2. Инициализация и работа с SQLite БД
+DB_PATH = "legalguard.db"
+
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            user_id INTEGER PRIMARY KEY,
+            username TEXT,
+            first_name TEXT,
+            created_at TEXT,
+            daily_usage INTEGER DEFAULT 0,
+            last_usage_date TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+def check_and_update_limit(user_id: int, username: str, first_name: str) -> tuple[bool, int]:
+    """Проверяет лимит пользователя. Возвращает (разрешено, оставшиеся_проверки)."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    today = datetime.now().strftime("%Y-%m-%d")
+    
+    cursor.execute("SELECT daily_usage, last_usage_date FROM users WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
+    
+    if not row:
+        # Новый пользователь
+        cursor.execute(
+            "INSERT INTO users (user_id, username, first_name, created_at, daily_usage, last_usage_date) VALUES (?, ?, ?, ?, 1, ?)",
+            (user_id, username, first_name, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), today)
+        )
+        conn.commit()
+        conn.close()
+        return True, DAILY_LIMIT - 1
+    
+    daily_usage, last_usage_date = row
+    
+    if last_usage_date != today:
+        # Новый день — сбрасываем счетчик
+        cursor.execute("UPDATE users SET daily_usage = 1, last_usage_date = ? WHERE user_id = ?", (today, user_id))
+        conn.commit()
+        conn.close()
+        return True, DAILY_LIMIT - 1
+    else:
+        if daily_usage >= DAILY_LIMIT:
+            conn.close()
+            return False, 0
+        else:
+            cursor.execute("UPDATE users SET daily_usage = daily_usage + 1 WHERE user_id = ?", (user_id,))
+            conn.commit()
+            conn.close()
+            return True, DAILY_LIMIT - (daily_usage + 1)
+
+# 3. Промпты
 PROMPTS = {
     "dev": """
 Ты — юрист, специализирующийся на договорах в IT, дизайне и разработке ПО (Авторский заказ/GDM).
@@ -53,8 +112,8 @@ PROMPTS = {
 Ты — юрист, специализирующийся на соглашениях о конфиденциальности (NDA).
 Проанализируй NDA с фокусом на:
 - Четкость определения "Конфиденциальной информации" (не всё подряд).
-- Разумные сроки действия режимa конфиденциальности (оптимально 1-3 года).
-- Соразмерность штрафов и ответственности за неумышленную разглашение.
+- Разумные сроки действия режима конфиденциальности (оптимально 1-3 года).
+- Соразмерность штрафов и ответственности за неумышленное разглашение.
 - Исключения из конфиденциальности (общедоступные сведения, законные требования госорганов).
 
 Структура ответа:
@@ -95,7 +154,7 @@ PROMPTS = {
 """
 }
 
-# 2. Встроенный веб-сервер
+# 4. Встроенный веб-сервер
 async def handle_health(request):
     return web.Response(text="OK", status=200)
 
@@ -107,7 +166,7 @@ async def start_web_server():
     site = web.TCPSite(runner, "0.0.0.0", PORT)
     await site.start()
 
-# 3. Вспомогательные функции
+# 5. Вспомогательные функции
 def extract_text_from_pdf(pdf_bytes: bytes) -> str:
     reader = pypdf.PdfReader(io.BytesIO(pdf_bytes))
     return "\n".join([page.extract_text() or "" for page in reader.pages])
@@ -168,8 +227,23 @@ def get_type_keyboard():
     ])
 
 async def process_and_reply(message: types.Message, text: str, user_id: int):
+    # Проверка лимитов БД
+    allowed, remaining = check_and_update_limit(
+        user_id=user_id,
+        username=message.from_user.username or "",
+        first_name=message.from_user.first_name or ""
+    )
+    
+    if not allowed:
+        await message.answer(
+            "🛑 **Превышен дневной лимит проверок!**\n\n"
+            f"Вам доступно **{DAILY_LIMIT} бесплатные проверки** в день. Лимит обновится завтра.\n"
+            "Спасибо, что пользуетесь LegalGuard!"
+        )
+        return
+
     contract_type = USER_CONTRACT_TYPES.get(user_id, "general")
-    status_msg = await message.answer("⚖️ Провожу специализированный анализ с помощью Gemini...")
+    status_msg = await message.answer(f"⚖️ Провожу анализ... (Осталось проверок на сегодня: {remaining})")
     
     try:
         analysis_result = await analyze_text_with_gemini(text, contract_type)
@@ -197,13 +271,14 @@ async def process_and_reply(message: types.Message, text: str, user_id: int):
         logging.error(f"Error during processing: {e}")
         await status_msg.edit_text(f"❌ Ошибка при анализе: {e}")
 
-# 4. Обработчики
+# 6. Обработчики
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message):
     USER_CONTRACT_TYPES[message.from_user.id] = "general"
     await message.answer(
         "👋 Привет! Я **LegalGuard** — твой юридический ассистент.\n\n"
-        "Выбери тип договора для более точной проверки или сразу отправь мне файл (PDF/DOCX) / текст договора:\n\n"
+        f"Тебе доступно **{DAILY_LIMIT} бесплатные проверки** в день.\n"
+        "Выбери тип договора для более точного анализа или просто отправь мне файл (PDF/DOCX) / текст договора:\n\n"
         "⚠️ *Сервис предоставляет автоматизированный первичный анализ и не является квалифицированной юридической консультацией.*",
         reply_markup=get_type_keyboard()
     )
@@ -221,7 +296,7 @@ async def set_contract_type(callback: CallbackQuery):
     }
     
     await callback.answer(f"Выбран режим: {names.get(ctype)}")
-    await callback.message.answer(f"✅ Установлен режим проверки: **{names.get(ctype)}**.\n\nТеперь отправь мне файл договора (PDF/DOCX) или вставь текст сообщением.")
+    await callback.message.answer(f"✅ Установлен режим проверки: **{names.get(ctype)}**.\n\nОтправь файл или текст договора.")
 
 @dp.message(F.document)
 async def handle_document(message: types.Message):
@@ -273,8 +348,9 @@ async def send_protocol_file(callback: CallbackQuery):
     file_to_send = BufferedInputFile(docx_bytes, filename="Protocol_of_Disagreements.docx")
     await callback.message.answer_document(file_to_send, caption="📝 Ваш протокол разногласий готов!")
 
-# 5. Главный запуск
+# 7. Главный запуск
 async def main():
+    init_db()  # Инициализация базы данных SQLite
     await start_web_server()
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
