@@ -176,24 +176,23 @@ def extract_text_from_docx(docx_bytes: bytes) -> str:
 
 async def analyze_text_with_gemini(text: str, contract_type: str = "general") -> str:
     system_instruction = PROMPTS.get(contract_type, PROMPTS["general"])
+    prompt_text = f"{system_instruction}\n\nПроанализируй договор:\n\n{text}"
     
-    # Популярные названия моделей для проверки
+    # 1. Пробуем стандартные точные имена моделей
     models_to_try = [
-        "gemini-2.5-flash",
         "gemini-2.0-flash",
         "gemini-1.5-flash",
-        "gemini-1.5-flash-latest"
+        "gemini-1.5-pro"
     ]
     
     last_exception = None
 
-    # Попытка 1: Проход по списку основных моделей
     for model_name in models_to_try:
         try:
             logging.info(f"Trying model: {model_name}")
             response = gemini_client.models.generate_content(
                 model=model_name,
-                contents=f"{system_instruction}\n\nПроанализируй договор:\n\n{text}",
+                contents=prompt_text,
             )
             if response and response.text:
                 return response.text
@@ -201,22 +200,21 @@ async def analyze_text_with_gemini(text: str, contract_type: str = "general") ->
             last_exception = e
             logging.warning(f"Failed with model {model_name}: {e}")
 
-    # Попытка 2: Автоматическое определение списка доступных моделей через API-ключ
+    # 2. Динамическое получение доступных моделей прямо из вашего API-ключа
     try:
-        logging.info("Attempting to dynamically discover working models...")
-        available_models = [
-            m.name.replace("models/", "") 
-            for m in gemini_client.models.list() 
-            if "generateContent" in m.supported_generation_methods
-        ]
+        logging.info("Requesting available models directly from Google API...")
+        all_models = list(gemini_client.models.list())
         
-        for model_name in available_models:
-            if "flash" in model_name or "pro" in model_name:
+        for m in all_models:
+            if hasattr(m, 'supported_generation_methods') and "generateContent" in m.supported_generation_methods:
+                clean_name = m.name.replace("models/", "")
+                if "embedding" in clean_name or "001" in clean_name:
+                    continue
                 try:
-                    logging.info(f"Trying discovered model: {model_name}")
+                    logging.info(f"Trying dynamically found model: {clean_name}")
                     response = gemini_client.models.generate_content(
-                        model=model_name,
-                        contents=f"{system_instruction}\n\nПроанализируй договор:\n\n{text}",
+                        model=clean_name,
+                        contents=prompt_text,
                     )
                     if response and response.text:
                         return response.text
@@ -224,9 +222,9 @@ async def analyze_text_with_gemini(text: str, contract_type: str = "general") ->
                     last_exception = e
                     continue
     except Exception as list_err:
-        logging.error(f"Failed to list models: {list_err}")
+        logging.error(f"Failed to list models from API: {list_err}")
 
-    raise Exception(f"Не удалось получить ответ от Gemini. Ошибка: {last_exception}")
+    raise Exception(f"Не удалось получить ответ от Gemini. Последняя ошибка: {last_exception}")
 
 def create_protocol_docx(protocol_data: list) -> bytes:
     doc = Document()
