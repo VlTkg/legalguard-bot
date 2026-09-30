@@ -1,65 +1,75 @@
-import os
 import asyncio
-import json
-from aiohttp import web
+import io
+import os
 from aiogram import Bot, Dispatcher, F, types
-from aiogram.filters import CommandStart
-import pypdf
-import docx
+from aiogram.filters import CommandStart, Command
+from aiogram.types import BufferedInputFile, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from aiohttp import web
+from docx import Document
+from docx.shared import Pt, RGBColor, Inches
 from google import genai
 from google.genai import types as genai_types
+import pypdf
 
-# 1. Токены из переменных окружения Render
+# 1. Настройка конфигурации
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+PORT = int(os.environ.get("PORT", 10000))
+
+if not TELEGRAM_TOKEN or not GEMINI_API_KEY:
+    raise ValueError("Ошибок в переменных окружения: TELEGRAM_TOKEN или GEMINI_API_KEY не заданы!")
 
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher()
+
+# Хранилище временных отчетов (в реальном проекте используется БД)
+USER_REPORTS = {}
+
+# Инициализация клиента Google Gemini SDK
 gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 
-# 2. Промпт для ИИ
+# Промпт для анализа
 SYSTEM_PROMPT = """
-Ты — профессиональный юридический ассистент, специализирующийся на анализе договоров для фрилансеров и IT-специалистов.
-Проанализируй предоставленный текст договора и верни ответ СТРОГО в формате JSON без кавычек markdown (```json).
+Ты — профессиональный юридический ассистент для фрилансеров и исполнителей.
+Твоя задача — найти скрытые риски в договоре и предложить их исправление.
 
-Формат JSON:
-{
-  "score": "Оценка рисков от 1 до 10 (где 10 — очень опасно)",
-  "summary": "Краткое резюме договора в 2-3 предложениях",
-  "risks": ["Риск 1", "Риск 2", "Риск 3"],
-  "recommendations": ["Рекомендация 1", "Рекомендация 2"]
-}
+Ответь строго по следующей структуре:
+1. 🚩 **Найденные риски** (с указанием пунктов договора и объяснением человеческим языком).
+2. 🛠 **Рекомендации** (как защитить себя).
+
+В самом конце ответа добавь специальный блок для формирования таблицы разногласий. 
+Он должен начинаться СТРОГО с метки `---PROTOCOL---` и содержать строки в формате:
+Пункт договора || Исходная редакция || Предлагаемая редакция || Комментарий
+
+Пример блока:
+---PROTOCOL---
+п. 7.2 || Штраф 100% за задержку на 1 час || Пеня 0.1% за каждый день просрочки, но не более 10% || Защита от неоплаты за минимальное отклонение от графика.
+п. 7.5 || Оплата в течение 180 дней || Оплата в течение 5 рабочих дней || Предотвращение кассового разрыва.
 """
 
-# 3. Веб-сервер для прохождения проверки Render (Health Check)
-async def handle_health_check(request):
-    return web.Response(text="LegalGuard Bot is live and healthy!")
+# 2. Встроенный веб-сервер для Render (Health Check)
+async def handle_health(request):
+    return web.Response(text="OK", status=200)
 
 async def start_web_server():
     app = web.Application()
-    app.router.add_get("/", handle_health_check)
+    app.router.add_get("/", handle_health)
     runner = web.AppRunner(app)
     await runner.setup()
-    
-    # Render передает порт через переменную PORT, по умолчанию 10000
-    port = int(os.environ.get("PORT", 10000))
-    site = web.TCPSite(runner, "0.0.0.0", port)
+    site = web.TCPSite(runner, "0.0.0.0", PORT)
     await site.start()
-    print(f" Web server successfully started on port {port}")
 
-# 4. Обработчик /start
-@dp.message(CommandStart())
-async def cmd_start(message: types.Message):
-    await message.answer(
-        "👋 Привет! Я **LegalGuard** — твой ИИ-юрист.\n\n"
-        "Отправь мне текст договора сообщением или загрузи документ в формате **PDF** или **DOCX**, "
-        "и я найду подводные камни и риски!"
-    )
+# 3. Функции работы с файлами и ИИ
+def extract_text_from_pdf(pdf_bytes: bytes) -> str:
+    reader = pypdf.PdfReader(io.BytesIO(pdf_bytes))
+    return "\n".join([page.extract_text() for page in reader.pages if page.extract_text()])
 
-# 5. Вызов модели Gemini
+def extract_text_from_docx(docx_bytes: bytes) -> str:
+    doc = Document(io.BytesIO(docx_bytes))
+    return "\n".join([p.text for p in doc.paragraphs if p.text])
+
 async def analyze_text_with_gemini(text: str) -> str:
     max_retries = 3
-    
     for attempt in range(max_retries):
         try:
             response = gemini_client.models.generate_content(
@@ -76,81 +86,104 @@ async def analyze_text_with_gemini(text: str) -> str:
                 await asyncio.sleep(5)
                 continue
             raise e
-# 6. Форматирование ответа
-def format_analysis_response(json_str: str) -> str:
-    try:
-        clean_str = json_str.replace("```json", "").replace("```", "").strip()
-        data = json.loads(clean_str)
-        
-        score = data.get("score", "N/A")
-        summary = data.get("summary", "Нет резюме")
-        risks = "\n".join([f"⚠️ {r}" for r in data.get("risks", [])])
-        recommendations = "\n".join([f"💡 {r}" for r in data.get("recommendations", [])])
-        
-        return (
-            f"⚖️ **РЕЗУЛЬТАТ АНАЛИЗА ДОГОВОРА**\n\n"
-            f"📊 **Уровень риска:** {score}/10\n\n"
-            f"📝 **Краткое резюме:**\n{summary}\n\n"
-            f"🚩 **Найденные риски:**\n{risks}\n\n"
-            f"🛠 **Рекомендации:**\n{recommendations}"
-        )
-    except Exception:
-        return f"📋 **Результат анализа:**\n\n{json_str}"
 
-# 7. Обработка сообщений с текстом
-@dp.message(F.text)
-async def handle_text(message: types.Message):
-    status_msg = await message.answer("🔍 Анализирую текст договора... Подождите 5-10 секунд.")
-    try:
-        raw_result = await analyze_text_with_gemini(message.text)
-        formatted_result = format_analysis_response(raw_result)
-        await status_msg.edit_text(formatted_result, parse_mode="Markdown")
-    except Exception as e:
-        await status_msg.edit_text(f"❌ Ошибка при анализе: {str(e)}")
+def create_protocol_docx(protocol_data: list) -> bytes:
+    doc = Document()
+    doc.add_heading('Протокол разногласий', level=1)
+    
+    table = doc.add_table(rows=1, cols=4)
+    table.style = 'Table Grid'
+    
+    hdr_cells = table.rows[0].cells
+    headers = ['Пункт договора', 'Редакция Заказчика', 'Предлагаемая редакция', 'Обоснование']
+    for i, header in enumerate(headers):
+        hdr_cells[i].text = header
+        
+    for item in protocol_data:
+        row_cells = table.add_row().cells
+        parts = item.split("||")
+        if len(parts) == 4:
+            for i in range(4):
+                row_cells[i].text = parts[i].strip()
+                
+    file_stream = io.BytesIO()
+    doc.save(file_stream)
+    return file_stream.getvalue()
 
-# 8. Обработка файлов PDF и DOCX
+# 4. Обработчики команд и сообщений Telegram
+@dp.message(CommandStart())
+async def cmd_start(message: types.Message):
+    await message.answer(
+        "👋 Привет! Я **LegalGuard** — твой юридический ассистент.\n\n"
+        "Отправь мне файл договора (`PDF` или `DOCX`) или вставь текст сообщением. "
+        "Я найду подводные камни и помогу составить протокол разногласий!\n\n"
+        "⚠️ *Обратите внимание: сервис предоставляет автоматизированный первичный анализ и не является юридической консультацией.*"
+    )
+
 @dp.message(F.document)
 async def handle_document(message: types.Message):
-    doc_name = message.document.file_name.lower()
-    
-    if not (doc_name.endswith('.pdf') or doc_name.endswith('.docx')):
-        await message.answer("⚠️ Пожалуйста, отправьте файл формата .pdf или .docx")
+    file_name = message.document.file_name.lower()
+    if not (file_name.endswith('.pdf') or file_name.endswith('.docx')):
+        await message.answer("Пожалуйста, отправьте файл в формате PDF или DOCX.")
         return
 
-    status_msg = await message.answer("📥 Загружаю и читаю файл...")
-    file_path = f"downloads/{message.document.file_name}"
-    os.makedirs("downloads", exist_ok=True)
-
+    status_msg = await message.answer("📥 Загружаю документ и начинаю анализ...")
     try:
-        file_info = await bot.get_file(message.document.file_id)
-        await bot.download_file(file_info.file_path, file_path)
-        
-        extracted_text = ""
-        if doc_name.endswith('.pdf'):
-            reader = pypdf.PdfReader(file_path)
-            for page in reader.pages:
-                extracted_text += page.extract_text() + "\n"
-        elif doc_name.endswith('.docx'):
-            doc_file = docx.Document(file_path)
-            for p in doc_file.paragraphs:
-                extracted_text += p.text + "\n"
+        file = await bot.get_file(message.document.file_id)
+        file_bytes = await bot.download_file(file.file_path)
 
-        if not extracted_text.strip():
-            await status_msg.edit_text("❌ Не удалось извлечь текст из файла. Убедитесь, что это не сканированное изображение.")
+        if file_name.endswith('.pdf'):
+            text = extract_text_from_pdf(file_bytes.read())
+        else:
+            text = extract_text_from_docx(file_bytes.read())
+
+        if not text.strip():
+            await status_msg.edit_text("Не удалось распознать текст в файле.")
             return
 
-        await status_msg.edit_text("🔍 Текст извлечен! Передаю юристу Gemini...")
-        raw_result = await analyze_text_with_gemini(extracted_text)
-        formatted_result = format_analysis_response(raw_result)
-        await status_msg.edit_text(formatted_result, parse_mode="Markdown")
+        await status_msg.edit_text("⚖️ Анализирую риски с помощью Gemini...")
+        analysis_result = await analyze_text_with_gemini(text)
+        
+        # Разделяем текстовый разбор и данные для протокола
+        main_text = analysis_result
+        protocol_items = []
+        
+        if "---PROTOCOL---" in analysis_result:
+            parts = analysis_result.split("---PROTOCOL---")
+            main_text = parts[0].strip()
+            raw_protocol = parts[1].strip().split("\n")
+            protocol_items = [line for line in raw_protocol if "||" in line]
+
+        # Сохраняем протокол во временную память
+        USER_REPORTS[message.from_user.id] = protocol_items
+
+        kb = None
+        if protocol_items:
+            kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="📄 Скачать Протокол разногласий (.docx)", callback_data="get_protocol")]
+            ])
+
+        await status_msg.edit_text(main_text, reply_markup=kb, parse_mode="Markdown")
 
     except Exception as e:
-        await status_msg.edit_text(f"❌ Ошибка обработки файла: {str(e)}")
-    finally:
-        if os.path.exists(file_path):
-            os.remove(file_path)
+        await status_msg.edit_text(f"❌ Ошибка при анализе: {e}")
 
-# 9. Точка входа: одновременно запускаем веб-сервер и бота Telegram
+@dp.callback_query(F.data == "get_protocol")
+async def send_protocol_file(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    protocol_data = USER_REPORTS.get(user_id)
+    
+    if not protocol_data:
+        await callback.answer("Данные протокола не найдены. Попробуйте загрузить договор заново.", show_alert=True)
+        return
+        
+    await callback.answer("Формирую Word-файл...")
+    docx_bytes = create_protocol_docx(protocol_data)
+    
+    file_to_send = BufferedInputFile(docx_bytes, filename="Protocol_of_Disagreements.docx")
+    await callback.message.answer_document(file_to_send, caption="📝 Ваш протокол разногласий готов для отправки заказчику!")
+
+# 5. Главная функция запуска
 async def main():
     await start_web_server()
     await dp.start_polling(bot)
