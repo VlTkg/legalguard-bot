@@ -2,6 +2,7 @@ import asyncio
 import io
 import os
 import logging
+import random
 import sqlite3
 from datetime import datetime
 from aiogram import Bot, Dispatcher, F, types
@@ -83,7 +84,7 @@ def check_and_update_limit(user_id: int, username: str, first_name: str) -> tupl
             conn.close()
             return False, 0
         else:
-            cursor.execute("UPDATE users SET daily_usage = daily_usage + 1 WHERE user_id = ?", (user_id,))
+            cursor.execute("UPDATE users SET daily_usage = daily_usage + 1 WHERE user_id = ?", (today, user_id))
             conn.commit()
             conn.close()
             return True, DAILY_LIMIT - (daily_usage + 1)
@@ -176,11 +177,17 @@ def extract_text_from_docx(docx_bytes: bytes) -> str:
 async def analyze_text_with_gemini(text: str, contract_type: str = "general") -> str:
     system_instruction = PROMPTS.get(contract_type, PROMPTS["general"])
     
-    # Резервная цепочка моделей на случай перегрузки основного инстанса
-    models_to_try = ["gemini-3.8-flash", "gemini-1.5-flash"]
+    # Цепочка моделей от приоритетных к более легким/резервным
+    models_to_try = [
+        "gemini-1.5-flash",
+        "gemini-1.5-flash-8b",
+        "gemini-1.5-pro"
+    ]
     
+    last_exception = None
+
     for model_name in models_to_try:
-        max_retries = 3
+        max_retries = 4
         for attempt in range(max_retries):
             try:
                 logging.info(f"Sending request to {model_name} (attempt {attempt + 1})...")
@@ -194,16 +201,19 @@ async def analyze_text_with_gemini(text: str, contract_type: str = "general") ->
                 )
                 return response.text
             except Exception as e:
+                last_exception = e
                 err_msg = str(e)
-                if "503" in err_msg or "UNAVAILABLE" in err_msg or "high demand" in err_msg.lower():
-                    sleep_time = (attempt + 1) * 5  # Паузы: 5s, 10s, 15s
-                    logging.warning(f"Model {model_name} busy (503). Retrying in {sleep_time}s...")
+                
+                # Проверка на перегрузку (503 / 429 / High demand)
+                if any(code in err_msg for code in ["503", "429", "UNAVAILABLE", "overloaded", "demand"]):
+                    sleep_time = (2 ** attempt) * 2 + random.uniform(1, 3)  # Паузы: ~3s, ~6s, ~11s, ~20s
+                    logging.warning(f"Model {model_name} busy/overloaded. Retrying in {sleep_time:.1f}s...")
                     await asyncio.sleep(sleep_time)
                 else:
-                    logging.error(f"Error on {model_name}: {e}")
+                    logging.error(f"Non-retryable error on {model_name}: {e}")
                     break
 
-    raise Exception("Серверы Google Gemini сейчас сильно перегружены. Пожалуйста, повторите запрос через 1–2 минуты.")
+    raise Exception(f"Серверы Google Gemini сейчас сильно перегружены. Попробуйте ещё раз через 1–2 минуты. ({last_exception})")
 
 def create_protocol_docx(protocol_data: list) -> bytes:
     doc = Document()
