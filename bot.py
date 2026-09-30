@@ -2,7 +2,6 @@ import asyncio
 import io
 import os
 import logging
-import random
 import sqlite3
 from datetime import datetime
 from aiogram import Bot, Dispatcher, F, types
@@ -178,11 +177,11 @@ async def analyze_text_with_gemini(text: str, contract_type: str = "general") ->
     system_instruction = PROMPTS.get(contract_type, PROMPTS["general"])
     prompt_text = f"{system_instruction}\n\nПроанализируй договор:\n\n{text}"
     
-    # Модели для перебора
+    # 1. Точные имена моделей с префиксом models/
     models_to_try = [
-        "gemini-1.5-flash",
-        "gemini-1.5-pro",
-        "gemini-1.0-pro"
+        "models/gemini-1.5-flash",
+        "models/gemini-1.5-pro",
+        "models/gemini-1.5-flash-latest"
     ]
     
     last_exception = None
@@ -200,6 +199,27 @@ async def analyze_text_with_gemini(text: str, contract_type: str = "general") ->
         except Exception as e:
             last_exception = e
             logging.warning(f"Model {model_name} failed: {e}")
+
+    # 2. Если фиксированные имена не сработали, опрашиваем доступные модели аккаунта
+    try:
+        logging.info("Polling available models from API key...")
+        available = [
+            m.name for m in genai.list_models() 
+            if 'generateContent' in m.supported_generation_methods
+        ]
+        for m_name in available:
+            if "flash" in m_name or "pro" in m_name:
+                try:
+                    logging.info(f"Trying discovered model: {m_name}")
+                    model = genai.GenerativeModel(m_name)
+                    response = await asyncio.to_thread(model.generate_content, prompt_text)
+                    if response and response.text:
+                        return response.text
+                except Exception as e:
+                    last_exception = e
+                    continue
+    except Exception as list_err:
+        logging.error(f"Failed to list models: {list_err}")
 
     raise Exception(f"Не удалось получить ответ от Gemini. Ошибка: {last_exception}")
 
@@ -286,7 +306,7 @@ async def cmd_start(message: types.Message):
         "👋 Привет! Я **LegalGuard** — твой юридический ассистент.\n\n"
         f"Тебе доступно **{DAILY_LIMIT} бесплатные проверки** в день.\n"
         "Выбери тип договора по кнопкам ниже или просто отправь файл (PDF/DOCX) / текст договора:\n\n"
-        "⚠️ *Сервис предоставляет автоматизированный первичный анализ и не является квалифицированной юридической консультацией.*",
+        "⚠️️ *Сервис предоставляет автоматизированный первичный анализ и не является квалифицированной юридической консультацией.*",
         reply_markup=get_type_keyboard()
     )
 
