@@ -10,8 +10,7 @@ from aiogram.filters import CommandStart
 from aiogram.types import BufferedInputFile, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from aiohttp import web
 from docx import Document
-from google import genai
-from google.genai import types as genai_types
+import google.generativeai as genai
 import pypdf
 
 # Логирование
@@ -29,11 +28,12 @@ if not TELEGRAM_TOKEN or not GEMINI_API_KEY:
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher()
 
+# Настройка клиента Gemini
+genai.configure(api_key=GEMINI_API_KEY)
+
 # Хранилища временных данных
 USER_REPORTS = {}
 USER_CONTRACT_TYPES = {}
-
-gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 
 # 2. Инициализация и работа с SQLite БД
 DB_PATH = "legalguard.db"
@@ -178,53 +178,30 @@ async def analyze_text_with_gemini(text: str, contract_type: str = "general") ->
     system_instruction = PROMPTS.get(contract_type, PROMPTS["general"])
     prompt_text = f"{system_instruction}\n\nПроанализируй договор:\n\n{text}"
     
-    # 1. Пробуем стандартные точные имена моделей
+    # Модели для перебора
     models_to_try = [
-        "gemini-2.0-flash",
         "gemini-1.5-flash",
-        "gemini-1.5-pro"
+        "gemini-1.5-pro",
+        "gemini-1.0-pro"
     ]
     
     last_exception = None
 
     for model_name in models_to_try:
         try:
-            logging.info(f"Trying model: {model_name}")
-            response = gemini_client.models.generate_content(
-                model=model_name,
-                contents=prompt_text,
-            )
+            logging.info(f"Sending request using model: {model_name}")
+            model = genai.GenerativeModel(model_name)
+            
+            # Выполняем асинхронный вызов к Gemini
+            response = await asyncio.to_thread(model.generate_content, prompt_text)
+            
             if response and response.text:
                 return response.text
         except Exception as e:
             last_exception = e
-            logging.warning(f"Failed with model {model_name}: {e}")
+            logging.warning(f"Model {model_name} failed: {e}")
 
-    # 2. Динамическое получение доступных моделей прямо из вашего API-ключа
-    try:
-        logging.info("Requesting available models directly from Google API...")
-        all_models = list(gemini_client.models.list())
-        
-        for m in all_models:
-            if hasattr(m, 'supported_generation_methods') and "generateContent" in m.supported_generation_methods:
-                clean_name = m.name.replace("models/", "")
-                if "embedding" in clean_name or "001" in clean_name:
-                    continue
-                try:
-                    logging.info(f"Trying dynamically found model: {clean_name}")
-                    response = gemini_client.models.generate_content(
-                        model=clean_name,
-                        contents=prompt_text,
-                    )
-                    if response and response.text:
-                        return response.text
-                except Exception as e:
-                    last_exception = e
-                    continue
-    except Exception as list_err:
-        logging.error(f"Failed to list models from API: {list_err}")
-
-    raise Exception(f"Не удалось получить ответ от Gemini. Последняя ошибка: {last_exception}")
+    raise Exception(f"Не удалось получить ответ от Gemini. Ошибка: {last_exception}")
 
 def create_protocol_docx(protocol_data: list) -> bytes:
     doc = Document()
