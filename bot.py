@@ -56,22 +56,26 @@ async def cmd_start(message: types.Message):
         "и я найду подводные камни и риски!"
     )
 
-# 5. Вызов модели Gemini через Interactions API
+# 5. Вызов модели Gemini
 async def analyze_text_with_gemini(text: str) -> str:
     max_retries = 3
     
     for attempt in range(max_retries):
         try:
-            interaction = gemini_client.interactions.create(
-                model="gemini-2.0-flash",
-                input=f"Проанализируй договор:\n\n{text}",
-                system_instruction=SYSTEM_PROMPT,
+            response = gemini_client.models.generate_content(
+                model="gemini-3.8-flash",
+                contents=f"Проанализируй договор:\n\n{text}",
+                config=genai_types.GenerateContentConfig(
+                    system_instruction=SYSTEM_PROMPT,
+                    temperature=0.2,
+                ),
             )
-            return interaction.outputs[-1].text
+            return response.text
         except Exception as e:
-            if attempt == max_retries - 1:
-                raise e
-            await asyncio.sleep(3)
+            if attempt < max_retries - 1:
+                await asyncio.sleep(5)
+                continue
+            raise e
 # 6. Форматирование ответа
 def format_analysis_response(json_str: str) -> str:
     try:
