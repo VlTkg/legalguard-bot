@@ -177,37 +177,54 @@ def extract_text_from_docx(docx_bytes: bytes) -> str:
 async def analyze_text_with_gemini(text: str, contract_type: str = "general") -> str:
     system_instruction = PROMPTS.get(contract_type, PROMPTS["general"])
     
-    # Актуальные стандартизированные модели
+    # Популярные названия моделей для проверки
     models_to_try = [
+        "gemini-2.5-flash",
         "gemini-2.0-flash",
-        "gemini-1.5-flash"
+        "gemini-1.5-flash",
+        "gemini-1.5-flash-latest"
     ]
     
     last_exception = None
 
+    # Попытка 1: Проход по списку основных моделей
     for model_name in models_to_try:
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                logging.info(f"Sending request to {model_name} (attempt {attempt + 1})...")
-                response = gemini_client.models.generate_content(
-                    model=model_name,
-                    contents=f"{system_instruction}\n\nПроанализируй договор:\n\n{text}",
-                )
-                if response and response.text:
-                    return response.text
-            except Exception as e:
-                last_exception = e
-                err_msg = str(e)
-                logging.warning(f"Error on {model_name}: {err_msg}")
-                
-                # Если перегруз или исчерпан лимит скорости
-                if any(code in err_msg for code in ["503", "429", "UNAVAILABLE", "overloaded", "demand"]):
-                    sleep_time = (attempt + 1) * 3 + random.uniform(1, 2)
-                    await asyncio.sleep(sleep_time)
-                else:
-                    # Если это другая ошибка (например, 404), переходим к следующей модели
-                    break
+        try:
+            logging.info(f"Trying model: {model_name}")
+            response = gemini_client.models.generate_content(
+                model=model_name,
+                contents=f"{system_instruction}\n\nПроанализируй договор:\n\n{text}",
+            )
+            if response and response.text:
+                return response.text
+        except Exception as e:
+            last_exception = e
+            logging.warning(f"Failed with model {model_name}: {e}")
+
+    # Попытка 2: Автоматическое определение списка доступных моделей через API-ключ
+    try:
+        logging.info("Attempting to dynamically discover working models...")
+        available_models = [
+            m.name.replace("models/", "") 
+            for m in gemini_client.models.list() 
+            if "generateContent" in m.supported_generation_methods
+        ]
+        
+        for model_name in available_models:
+            if "flash" in model_name or "pro" in model_name:
+                try:
+                    logging.info(f"Trying discovered model: {model_name}")
+                    response = gemini_client.models.generate_content(
+                        model=model_name,
+                        contents=f"{system_instruction}\n\nПроанализируй договор:\n\n{text}",
+                    )
+                    if response and response.text:
+                        return response.text
+                except Exception as e:
+                    last_exception = e
+                    continue
+    except Exception as list_err:
+        logging.error(f"Failed to list models: {list_err}")
 
     raise Exception(f"Не удалось получить ответ от Gemini. Ошибка: {last_exception}")
 
@@ -293,7 +310,7 @@ async def cmd_start(message: types.Message):
     await message.answer(
         "👋 Привет! Я **LegalGuard** — твой юридический ассистент.\n\n"
         f"Тебе доступно **{DAILY_LIMIT} бесплатные проверки** в день.\n"
-        "Выбери тип договора для более точного анализа или просто отправь мне файл (PDF/DOCX) / текст договора:\n\n"
+        "Выбери тип договора по кнопкам ниже или просто отправь файл (PDF/DOCX) / текст договора:\n\n"
         "⚠️ *Сервис предоставляет автоматизированный первичный анализ и не является квалифицированной юридической консультацией.*",
         reply_markup=get_type_keyboard()
     )
