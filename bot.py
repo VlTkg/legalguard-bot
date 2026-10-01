@@ -1,11 +1,12 @@
 import asyncio
 import io
 import os
+import re
 import logging
 import sqlite3
 from datetime import datetime
 from aiogram import Bot, Dispatcher, F, types
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandStart, Command
 from aiogram.types import BufferedInputFile, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from aiohttp import web
 from docx import Document
@@ -33,6 +34,18 @@ genai.configure(api_key=GEMINI_API_KEY)
 # Хранилища временных данных
 USER_REPORTS = {}
 USER_CONTRACT_TYPES = {}
+
+# Текст полного дисклеймера
+DISCLAIMER_TEXT = (
+    "⚖️ **Ограничение ответственности и правила сервиса LegalGuard**\n\n"
+    "1. **Не является юридической консультацией:** Бот использует искусственный интеллект (Google Gemini) "
+    "для автоматического первичного анализа текста. Ответы бота носят исключительно справочный характер.\n\n"
+    "2. **Необходимость специалиста:** Бот не заменяет квалифицированного юриста. Перед подписанием критически "
+    "важных документов обязательно проконсультируйтесь с профильным юристом.\n\n"
+    "3. **Конфиденциальность:** Мы автоматически анонимизируем персональные данные (ФИО, телефоны, email, ИНН) "
+    "перед передачей текста в нейросеть, однако настоятельно рекомендуем не загружать документы, содержащие строгую "
+    "коммерческую или государственную тайну."
+)
 
 # 2. Инициализация и работа с SQLite БД
 DB_PATH = "legalguard.db"
@@ -88,7 +101,20 @@ def check_and_update_limit(user_id: int, username: str, first_name: str) -> tupl
             conn.close()
             return True, DAILY_LIMIT - (daily_usage + 1)
 
-# 3. Промпты
+# 3. Функции анонимизации данных (PII Cleanup)
+def anonymize_text(text: str) -> str:
+    """Очищает текст от персональных данных перед отправкой в LLM."""
+    # Email
+    text = re.sub(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', '[EMAIL]', text)
+    # Номера телефонов
+    text = re.sub(r'(\+7|8|7)?[\s\-]?\(?\d{3}\)?[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}', '[ТЕЛЕФОН]', text)
+    # ИНН / БИН (10, 12 цифр)
+    text = re.sub(r'\b\d{10}\b|\b\d{12}\b', '[ИНН/БИН]', text)
+    # Паспортные данные (Серия Номер)
+    text = re.sub(r'\b\d{4}\s\d{6}\b', '[ПАСПОРТ]', text)
+    return text
+
+# 4. Промпты
 PROMPTS = {
     "dev": """
 Ты — юрист, специализирующийся на договорах в IT, дизайне и разработке ПО (Авторский заказ/GDM).
@@ -152,7 +178,7 @@ PROMPTS = {
 """
 }
 
-# 4. Встроенный веб-сервер
+# 5. Встроенный веб-сервер
 async def handle_health(request):
     return web.Response(text="OK", status=200)
 
@@ -164,7 +190,7 @@ async def start_web_server():
     site = web.TCPSite(runner, "0.0.0.0", PORT)
     await site.start()
 
-# 5. Вспомогательные функции
+# 6. Вспомогательные функции
 def extract_text_from_pdf(pdf_bytes: bytes) -> str:
     reader = pypdf.PdfReader(io.BytesIO(pdf_bytes))
     return "\n".join([page.extract_text() or "" for page in reader.pages])
@@ -174,10 +200,12 @@ def extract_text_from_docx(docx_bytes: bytes) -> str:
     return "\n".join([p.text for p in doc.paragraphs if p.text])
 
 async def analyze_text_with_gemini(text: str, contract_type: str = "general") -> str:
-    system_instruction = PROMPTS.get(contract_type, PROMPTS["general"])
-    prompt_text = f"{system_instruction}\n\nПроанализируй договор:\n\n{text}"
+    # 1. Выполняем анонимизацию
+    clean_text = anonymize_text(text)
     
-    # 1. Точные имена моделей с префиксом models/
+    system_instruction = PROMPTS.get(contract_type, PROMPTS["general"])
+    prompt_text = f"{system_instruction}\n\nПроанализируй договор:\n\n{clean_text}"
+    
     models_to_try = [
         "models/gemini-1.5-flash",
         "models/gemini-1.5-pro",
@@ -190,8 +218,6 @@ async def analyze_text_with_gemini(text: str, contract_type: str = "general") ->
         try:
             logging.info(f"Sending request using model: {model_name}")
             model = genai.GenerativeModel(model_name)
-            
-            # Выполняем асинхронный вызов к Gemini
             response = await asyncio.to_thread(model.generate_content, prompt_text)
             
             if response and response.text:
@@ -200,7 +226,6 @@ async def analyze_text_with_gemini(text: str, contract_type: str = "general") ->
             last_exception = e
             logging.warning(f"Model {model_name} failed: {e}")
 
-    # 2. Если фиксированные имена не сработали, опрашиваем доступные модели аккаунта
     try:
         logging.info("Polling available models from API key...")
         available = [
@@ -251,7 +276,8 @@ def get_type_keyboard():
         [InlineKeyboardButton(text="💻 Разработка ПО / Дизайн", callback_data="type_dev")],
         [InlineKeyboardButton(text="🤐 NDA (Конфиденциальность)", callback_data="type_nda")],
         [InlineKeyboardButton(text="🛠 Оказание услуг / Фриланс", callback_data="type_services")],
-        [InlineKeyboardButton(text="📄 Общий / Другой договор", callback_data="type_general")]
+        [InlineKeyboardButton(text="📄 Общий / Другой договор", callback_data="type_general")],
+        [InlineKeyboardButton(text="ℹ️ О сервисе и правовая информация", callback_data="show_disclaimer")]
     ])
 
 async def process_and_reply(message: types.Message, text: str, user_id: int):
@@ -298,7 +324,7 @@ async def process_and_reply(message: types.Message, text: str, user_id: int):
         logging.error(f"Error during processing: {e}")
         await status_msg.edit_text(f"❌ Ошибка при анализе: {e}")
 
-# 6. Обработчики
+# 7. Обработчики
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message):
     USER_CONTRACT_TYPES[message.from_user.id] = "general"
@@ -306,9 +332,18 @@ async def cmd_start(message: types.Message):
         "👋 Привет! Я **LegalGuard** — твой юридический ассистент.\n\n"
         f"Тебе доступно **{DAILY_LIMIT} бесплатные проверки** в день.\n"
         "Выбери тип договора по кнопкам ниже или просто отправь файл (PDF/DOCX) / текст договора:\n\n"
-        "⚠️️ *Сервис предоставляет автоматизированный первичный анализ и не является квалифицированной юридической консультацией.*",
+        "⚠️ *Сервис предоставляет автоматизированный первичный скрининг и не является юридической консультацией.*",
         reply_markup=get_type_keyboard()
     )
+
+@dp.message(Command("disclaimer"))
+async def cmd_disclaimer(message: types.Message):
+    await message.answer(DISCLAIMER_TEXT)
+
+@dp.callback_query(F.data == "show_disclaimer")
+async def callback_disclaimer(callback: CallbackQuery):
+    await callback.answer()
+    await callback.message.answer(DISCLAIMER_TEXT)
 
 @dp.callback_query(F.data.startswith("type_"))
 async def set_contract_type(callback: CallbackQuery):
@@ -375,7 +410,7 @@ async def send_protocol_file(callback: CallbackQuery):
     file_to_send = BufferedInputFile(docx_bytes, filename="Protocol_of_Disagreements.docx")
     await callback.message.answer_document(file_to_send, caption="📝 Ваш протокол разногласий готов!")
 
-# 7. Главный запуск
+# 8. Главный запуск
 async def main():
     init_db()
     await start_web_server()
