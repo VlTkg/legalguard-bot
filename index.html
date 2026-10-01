@@ -3,16 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>LegalGuard - Анализ Договора</title>
+  <title>LegalGuard Report</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
     :root {
-      --bg-color: var(--tg-theme-bg-color, #f4f6f9);
+      --bg-color: var(--tg-theme-bg-color, #f4f5f7);
       --card-bg: var(--tg-theme-secondary-bg-color, #ffffff);
-      --text-color: var(--tg-theme-text-color, #222222);
+      --text-color: var(--tg-theme-text-color, #1c1d21);
       --hint-color: var(--tg-theme-hint-color, #8e8e93);
-      --button-color: var(--tg-theme-button-color, #007aff);
-      --button-text: var(--tg-theme-button-text-color, #ffffff);
+      --button-color: var(--tg-theme-button-color, #2483ff);
+      --button-text-color: var(--tg-theme-button-text-color, #ffffff);
+      
+      --danger-color: #ff3b30;
+      --warning-color: #ff9500;
+      --success-color: #34c759;
     }
 
     body {
@@ -22,192 +26,184 @@
       margin: 0;
       padding: 16px;
       box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
     }
 
-    .header {
-      margin-bottom: 16px;
+    header {
+      margin-bottom: 20px;
     }
 
-    .header h2 {
-      margin: 0 0 4px 0;
-      font-size: 22px;
-    }
-
-    .header p {
-      margin: 0;
+    .doc-info {
+      font-size: 14px;
       color: var(--hint-color);
-      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
     }
 
-    .summary-box {
-      display: flex;
-      gap: 10px;
+    h1 {
+      font-size: 22px;
+      font-weight: 700;
+      margin: 0 0 16px 0;
+      line-height: 1.3;
+    }
+
+    /* Сводка / Статистика */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
       margin-bottom: 20px;
     }
 
     .summary-card {
-      flex: 1;
-      background-color: var(--card-bg);
+      background: var(--card-bg);
+      padding: 12px 8px;
       border-radius: 12px;
-      padding: 10px;
       text-align: center;
       box-shadow: 0 2px 8px rgba(0,0,0,0.04);
     }
 
     .summary-card .count {
       font-size: 20px;
-      font-weight: bold;
+      font-weight: 700;
+      display: block;
+      margin-bottom: 2px;
     }
+
+    .summary-card .count.red { color: var(--danger-color); }
+    .summary-card .count.yellow { color: var(--warning-color); }
+    .summary-card .count.green { color: var(--success-color); }
 
     .summary-card .label {
       font-size: 11px;
       color: var(--hint-color);
-      text-transform: uppercase;
-      margin-top: 2px;
     }
 
-    .count.red { color: #e74c3c; }
-    .count.yellow { color: #f39c12; }
-    .count.green { color: #2ecc71; }
-
+    /* Карточки рисков */
     .risk-item {
-      background-color: var(--card-bg);
+      background: var(--card-bg);
       border-radius: 14px;
       padding: 16px;
-      margin-bottom: 14px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      margin-bottom: 16px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
       border-left: 5px solid #ccc;
     }
 
-    .risk-item.high { border-left-color: #e74c3c; }
-    .risk-item.medium { border-left-color: #f39c12; }
-    .risk-item.low { border-left-color: #2ecc71; }
+    .risk-item.high { border-left-color: var(--danger-color); }
+    .risk-item.medium { border-left-color: var(--warning-color); }
+    .risk-item.low { border-left-color: var(--success-color); }
 
     .risk-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 8px;
+      margin-bottom: 12px;
     }
 
     .clause-title {
-      font-weight: bold;
-      font-size: 15px;
+      font-weight: 700;
+      font-size: 16px;
     }
 
     .badge {
       font-size: 11px;
-      padding: 3px 8px;
-      border-radius: 20px;
-      color: white;
+      padding: 4px 8px;
+      border-radius: 6px;
       font-weight: 600;
+      text-transform: uppercase;
     }
 
-    .badge.high { background-color: #e74c3c; }
-    .badge.medium { background-color: #f39c12; }
-    .badge.low { background-color: #2ecc71; }
+    .badge.high { background: rgba(255, 59, 48, 0.12); color: var(--danger-color); }
+    .badge.medium { background: rgba(255, 149, 0, 0.12); color: var(--warning-color); }
+    .badge.low { background: rgba(52, 199, 89, 0.12); color: var(--success-color); }
 
     .quote-box {
-      background-color: rgba(0,0,0,0.03);
+      background: rgba(142, 142, 147, 0.08);
+      padding: 10px 12px;
       border-radius: 8px;
-      padding: 10px;
       font-size: 13px;
       font-style: italic;
+      line-height: 1.4;
       margin-bottom: 10px;
     }
 
     .recommendation {
-      font-size: 13.5px;
+      font-size: 13px;
       line-height: 1.4;
       margin-bottom: 10px;
     }
 
     .proposed-fix {
-      background-color: rgba(46, 204, 113, 0.1);
-      border: 1px dashed #2ecc71;
+      background: rgba(52, 199, 89, 0.08);
+      border: 1px dashed var(--success-color);
+      padding: 10px 12px;
       border-radius: 8px;
-      padding: 10px;
       font-size: 13px;
+      line-height: 1.4;
     }
 
     .proposed-fix-title {
-      font-weight: bold;
-      color: #27ae60;
+      font-weight: 600;
+      color: var(--success-color);
       margin-bottom: 4px;
-      font-size: 12px;
     }
 
-    /* Обратная связь по каждому пункту */
     .clause-feedback {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-top: 12px;
       padding-top: 8px;
-      border-top: 1px solid rgba(0,0,0,0.05);
+      border-top: 1px solid rgba(142, 142, 147, 0.15);
       font-size: 12px;
       color: var(--hint-color);
     }
 
     .vote-btns {
       display: flex;
-      gap: 6px;
+      gap: 8px;
     }
 
     .vote-btn {
       background: none;
-      border: 1px solid rgba(0,0,0,0.1);
+      border: 1px solid var(--hint-color);
       border-radius: 6px;
       padding: 4px 8px;
       cursor: pointer;
       font-size: 12px;
     }
 
-    /* Блок общей оценки отчета */
-    .feedback-box {
-      background-color: var(--card-bg);
+    /* Блок оценки сервиса */
+    .rating-section {
+      background: var(--card-bg);
       border-radius: 14px;
       padding: 16px;
-      margin-top: 20px;
       text-align: center;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-    }
-
-    .feedback-title {
-      font-weight: bold;
-      font-size: 14px;
-      margin-bottom: 8px;
+      margin-top: 24px;
+      margin-bottom: 30px;
     }
 
     .rating-stars {
       font-size: 24px;
-      letter-spacing: 6px;
+      margin: 8px 0;
       cursor: pointer;
-      margin-bottom: 10px;
     }
 
-    .actions {
-      margin-top: 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .btn {
+    .action-btn {
       width: 100%;
-      padding: 14px;
-      border-radius: 12px;
-      border: none;
       background-color: var(--button-color);
-      color: var(--button-text);
+      color: var(--button-text-color);
+      border: none;
+      border-radius: 12px;
+      padding: 14px;
       font-size: 15px;
       font-weight: 600;
       cursor: pointer;
-      text-align: center;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      margin-bottom: 12px;
     }
 
-    .btn-secondary {
+    .action-btn.secondary {
       background-color: transparent;
       color: var(--button-color);
       border: 1px solid var(--button-color);
@@ -216,91 +212,43 @@
 </head>
 <body>
 
-  <div class="header">
-    <h2>🛡 Результаты анализа</h2>
-    <p id="doc-name">Договор разработки ПО №12/26</p>
-  </div>
-
-  <div class="summary-box">
-    <div class="summary-card">
-      <div class="count red">1</div>
-      <div class="label">Критично</div>
-    </div>
-    <div class="summary-card">
-      <div class="count yellow">1</div>
-      <div class="label">Внимание</div>
-    </div>
-    <div class="summary-card">
-      <div class="count green">1</div>
-      <div class="label">Безопасно</div>
-    </div>
-  </div>
-
-  <div id="risks-container">
+  <header>
+    <div class="doc-info">Правовой разбор</div>
+    <h1 id="doc-name">Загрузка документа...</h1>
     
-    <!-- Карточка 1 -->
-    <div class="risk-item high">
-      <div class="risk-header">
-        <span class="clause-title">Пункт 4.2 — Передача IP прав</span>
-        <span class="badge high">Высокий риск</span>
+    <div class="summary-grid">
+      <div class="summary-card">
+        <span class="count red">0</span>
+        <span class="label">Высокий риск</span>
       </div>
-      <div class="quote-box">
-        «Все исключительные права на результаты работ переходят к Заказчику в момент подписания настоящего Договора.»
+      <div class="summary-card">
+        <span class="count yellow">0</span>
+        <span class="label">Средний риск</span>
       </div>
-      <div class="recommendation">
-        ⚠️ **Почему опасно:** Исключительные права передаются еще до выполнения работ и их оплаты.
-      </div>
-      <div class="proposed-fix">
-        <div class="proposed-fix-title">💡 Предлагаемая редакция:</div>
-        «Исключительные права на результаты работ переходят к Заказчику в момент подписания Акта и полной 100% оплаты.»
-      </div>
-      <div class="clause-feedback">
-        <span>Полезен разбор?</span>
-        <div class="vote-btns">
-          <button class="vote-btn" onclick="sendVote(1, 'like')">👍</button>
-          <button class="vote-btn" onclick="sendVote(1, 'dislike')">👎</button>
-        </div>
+      <div class="summary-card">
+        <span class="count green">0</span>
+        <span class="label">Низкий риск</span>
       </div>
     </div>
+  </header>
 
-    <!-- Карточка 2 -->
-    <div class="risk-item medium">
-      <div class="risk-header">
-        <span class="clause-title">Пункт 6.1 — Приемка и Правки</span>
-        <span class="badge medium">Средний риск</span>
-      </div>
-      <div class="quote-box">
-        «Исполнитель обязуется вносить изменения и доработки по первому требованию Заказчика до полного утверждения.»
-      </div>
-      <div class="recommendation">
-        ⚠️️ **Почему опасно:** Нет ограничения количества итераций правок.
-      </div>
-      <div class="proposed-fix">
-        <div class="proposed-fix-title">💡 Предлагаемая редакция:</div>
-        «Исполнитель обязуется внести не более 2 (двух) итераций правок в рамках первоначального ТЗ.»
-      </div>
-      <div class="clause-feedback">
-        <span>Полезен разбор?</span>
-        <div class="vote-btns">
-          <button class="vote-btn" onclick="sendVote(2, 'like')">👍</button>
-          <button class="vote-btn" onclick="sendVote(2, 'dislike')">👎</button>
-        </div>
-      </div>
+  <main id="risks-container">
+    <!-- Сюда динамически загрузятся карточки отчетов -->
+    <div style="text-align: center; color: var(--hint-color); padding: 40px 0;">
+      Ожидание данных от LegalGuard...
     </div>
+  </main>
 
-  </div>
-
-  <!-- Оценка качества разбора -->
-  <div class="feedback-box">
-    <div class="feedback-title">Оцените качество анализа договора</div>
+  <section class="rating-section">
+    <div style="font-weight: 600; font-size: 14px;">Оцените качество разбора</div>
     <div class="rating-stars" onclick="rateAnalysis(event)">⭐⭐⭐⭐⭐</div>
-    <div style="font-size: 12px; color: var(--hint-color);" id="rating-status">Нажмите на звезду</div>
-  </div>
+    <div id="rating-status" style="font-size: 12px; color: var(--hint-color);">Нажмите на звезду для оценки</div>
+  </section>
 
-  <div class="actions">
-    <button class="btn" onclick="downloadProtocol()">📄 Скачать Протокол разногласий (.docx)</button>
-    <button class="btn btn-secondary" onclick="closeWebApp()">Закрыть</button>
-  </div>
+  <footer>
+    <button class="action-btn" onclick="downloadProtocol()">📄 Скачать Протокол разногласий (.docx)</button>
+    <button class="action-btn secondary" onclick="closeWebApp()">Закрыть окно</button>
+  </footer>
 
   <script>
     const tg = window.Telegram.WebApp;
@@ -315,16 +263,101 @@
     }
 
     function sendVote(clauseId, type) {
-      tg.HapticFeedback.impactOccurred('light');
+      if (tg.HapticFeedback) {
+        tg.HapticFeedback.impactOccurred('light');
+      }
       tg.sendData(JSON.stringify({ action: "clause_vote", clause_id: clauseId, vote: type }));
       alert('Спасибо за отзыв!');
     }
 
     function rateAnalysis(e) {
-      tg.HapticFeedback.notificationOccurred('success');
+      if (tg.HapticFeedback) {
+        tg.HapticFeedback.notificationOccurred('success');
+      }
       document.getElementById('rating-status').innerText = 'Спасибо за Вашу оценку! ❤️';
       tg.sendData(JSON.stringify({ action: "rating", stars: 5 }));
     }
+
+    // Динамическая загрузка данных из API bot.py
+    async function loadReportData() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const userId = urlParams.get('user_id') || (tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : null);
+
+      if (!userId) {
+        document.getElementById('risks-container').innerHTML = `
+          <div style="text-align: center; color: var(--hint-color); padding: 20px;">
+            Для отображения отчета загрузите документ в чат бота <b>@LegalGuardTV_bot</b>.
+          </div>`;
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/report?user_id=${userId}`);
+        if (!response.ok) {
+          document.getElementById('risks-container').innerHTML = `
+            <div style="text-align: center; color: var(--hint-color); padding: 20px;">
+              Отчет не найден или устарел. Отправьте документ в чат заново.
+            </div>`;
+          return;
+        }
+
+        const data = await response.json();
+
+        // Заголовок документа
+        if (data.doc_title) {
+          document.getElementById('doc-name').innerText = data.doc_title;
+        }
+
+        // Счетчики
+        if (data.summary) {
+          document.querySelector('.count.red').innerText = data.summary.high || 0;
+          document.querySelector('.count.yellow').innerText = data.summary.medium || 0;
+          document.querySelector('.count.green').innerText = data.summary.low || 0;
+        }
+
+        // Карточки рисков
+        if (data.risks && data.risks.length > 0) {
+          const container = document.getElementById('risks-container');
+          container.innerHTML = '';
+
+          data.risks.forEach(risk => {
+            const levelClass = risk.level === 'high' ? 'high' : (risk.level === 'medium' ? 'medium' : 'low');
+            const levelText = risk.level === 'high' ? 'Высокий риск' : (risk.level === 'medium' ? 'Средний риск' : 'Низкий риск');
+
+            const cardHtml = `
+              <div class="risk-item ${levelClass}">
+                <div class="risk-header">
+                  <span class="clause-title">${risk.clause}</span>
+                  <span class="badge ${levelClass}">${levelText}</span>
+                </div>
+                <div class="quote-box">
+                  «${risk.original}»
+                </div>
+                <div class="recommendation">
+                  ⚠️ <b>Обоснование:</b> ${risk.comment}
+                </div>
+                <div class="proposed-fix">
+                  <div class="proposed-fix-title">💡 Предлагаемая редакция:</div>
+                  «${risk.proposed}»
+                </div>
+                <div class="clause-feedback">
+                  <span>Полезен разбор?</span>
+                  <div class="vote-btns">
+                    <button class="vote-btn" onclick="sendVote(${risk.id}, 'like')">👍</button>
+                    <button class="vote-btn" onclick="sendVote(${risk.id}, 'dislike')">👎</button>
+                  </div>
+                </div>
+              </div>
+            `;
+            container.insertAdjacentHTML('beforeend', cardHtml);
+          });
+        }
+      } catch (e) {
+        console.error("Failed to load report data:", e);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadReportData);
   </script>
 </body>
 </html>
