@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>LegalGuard - Анализ Договора</title>
+  <!-- Telegram WebApp SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      --bg-color: var(--tg-theme-bg-color, #f4f6f9);
+      --card-bg: var(--tg-theme-secondary-bg-color, #ffffff);
+      --text-color: var(--tg-theme-text-color, #222222);
+      --hint-color: var(--tg-theme-hint-color, #8e8e93);
+      --button-color: var(--tg-theme-button-color, #007aff);
+      --button-text: var(--tg-theme-button-text-color, #ffffff);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      margin: 0;
+      padding: 16px;
+      box-sizing: border-box;
+    }
+
+    .header {
+      margin-bottom: 20px;
+    }
+
+    .header h2 {
+      margin: 0 0 6px 0;
+      font-size: 22px;
+    }
+
+    .header p {
+      margin: 0;
+      color: var(--hint-color);
+      font-size: 14px;
+    }
+
+    /* Статистика рисков */
+    .summary-box {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .summary-card {
+      flex: 1;
+      background-color: var(--card-bg);
+      border-radius: 12px;
+      padding: 12px;
+      text-align: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+
+    .summary-card .count {
+      font-size: 20px;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    .summary-card .label {
+      font-size: 11px;
+      color: var(--hint-color);
+      text-transform: uppercase;
+    }
+
+    .count.red { color: #e74c3c; }
+    .count.yellow { color: #f39c12; }
+    .count.green { color: #2ecc71; }
+
+    /* Список рисков */
+    .risk-item {
+      background-color: var(--card-bg);
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 14px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      border-left: 5px solid #ccc;
+    }
+
+    .risk-item.high { border-left-color: #e74c3c; }
+    .risk-item.medium { border-left-color: #f39c12; }
+    .risk-item.low { border-left-color: #2ecc71; }
+
+    .risk-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .clause-title {
+      font-weight: bold;
+      font-size: 15px;
+    }
+
+    .badge {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 20px;
+      color: white;
+      font-weight: 600;
+    }
+
+    .badge.high { background-color: #e74c3c; }
+    .badge.medium { background-color: #f39c12; }
+    .badge.low { background-color: #2ecc71; }
+
+    .quote-box {
+      background-color: rgba(0,0,0,0.03);
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 13px;
+      font-style: italic;
+      margin-bottom: 10px;
+      color: var(--text-color);
+    }
+
+    .recommendation {
+      font-size: 13.5px;
+      line-height: 1.4;
+      margin-bottom: 10px;
+    }
+
+    .proposed-fix {
+      background-color: rgba(46, 204, 113, 0.1);
+      border: 1px dashed #2ecc71;
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 13px;
+      color: var(--text-color);
+    }
+
+    .proposed-fix-title {
+      font-weight: bold;
+      color: #27ae60;
+      margin-bottom: 4px;
+      font-size: 12px;
+    }
+
+    .actions {
+      margin-top: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 14px;
+      border-radius: 12px;
+      border: none;
+      background-color: var(--button-color);
+      color: var(--button-text);
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    .btn-secondary {
+      background-color: transparent;
+      color: var(--button-color);
+      border: 1px solid var(--button-color);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h2>🛡 Результаты анализа</h2>
+    <p id="doc-name">Договор разработки ПО №12/26</p>
+  </div>
+
+  <!-- Сводка -->
+  <div class="summary-box">
+    <div class="summary-card">
+      <div class="count red" id="red-count">1</div>
+      <div class="label">Критично</div>
+    </div>
+    <div class="summary-card">
+      <div class="count yellow" id="yellow-count">1</div>
+      <div class="label">Внимание</div>
+    </div>
+    <div class="summary-card">
+      <div class="count green" id="green-count">1</div>
+      <div class="label">Безопасно</div>
+    </div>
+  </div>
+
+  <!-- Список найденных пунктов -->
+  <div id="risks-container">
+    
+    <!-- Карточка 1: Критический риск -->
+    <div class="risk-item high">
+      <div class="risk-header">
+        <span class="clause-title">Пункт 4.2 — Передача IP прав</span>
+        <span class="badge high">Высокий риск</span>
+      </div>
+      <div class="quote-box">
+        «Все исключительные права на результаты работ переходят к Заказчику в момент подписания настоящего Договора.»
+      </div>
+      <div class="recommendation">
+        ⚠️ **Почему опасно:** Исключительные права передаются еще до выполнения работ и их оплаты. Заказчик может забрать исходники и не заплатить.
+      </div>
+      <div class="proposed-fix">
+        <div class="proposed-fix-title">💡 Предлагаемая редакция:</div>
+        «Исключительные права на результаты работ переходят к Заказчику в момент подписания Акта и полной 100% оплаты.»
+      </div>
+    </div>
+
+    <!-- Карточка 2: Средний риск -->
+    <div class="risk-item medium">
+      <div class="risk-header">
+        <span class="clause-title">Пункт 6.1 — Приемка и Правки</span>
+        <span class="badge medium">Средний риск</span>
+      </div>
+      <div class="quote-box">
+        «Исполнитель обязуется вносить изменения и доработки по первому требованию Заказчика до полного утверждения.»
+      </div>
+      <div class="recommendation">
+        ⚠️ **Почему опасно:** Нет ограничения количества итераций правок. Это может привести к бесконечной бесплатной доработке (Scope Creep).
+      </div>
+      <div class="proposed-fix">
+        <div class="proposed-fix-title">💡 Предлагаемая редакция:</div>
+        «Исполнитель обязуется внести не более 2 (двух) итераций правок в рамках первоначального Технического задания.»
+      </div>
+    </div>
+
+    <!-- Карточка 3: Низкий риск -->
+    <div class="risk-item low">
+      <div class="risk-header">
+        <span class="clause-title">Пункт 8.3 — Порядок Оплаты</span>
+        <span class="badge low">Безопасно</span>
+      </div>
+      <div class="quote-box">
+        «Заказчик производит оплату в течение 5 (пяти) банковских дней с момента подписания Акта приемки.»
+      </div>
+      <div class="recommendation">
+        ✅ **Оценка:** Срок оплаты адекватный и соответствует стандартной практике.
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Кнопки действий -->
+  <div class="actions">
+    <button class="btn" onclick="downloadProtocol()">📄 Скачать Протокол разногласий (.docx)</button>
+    <button class="btn btn-secondary" onclick="closeWebApp()">Закрыть</button>
+  </div>
+
+  <script>
+    // Инициализация Telegram WebApp SDK
+    const tg = window.Telegram.WebApp;
+    tg.expand(); // Развернуть во весь экран
+
+    function closeWebApp() {
+      tg.close();
+    }
+
+    function downloadProtocol() {
+      tg.sendData(JSON.stringify({ action: "download_protocol" }));
+    }
+  </script>
+</body>
+</html>
