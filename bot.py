@@ -34,6 +34,7 @@ genai.configure(api_key=GEMINI_API_KEY)
 # Хранилища временных данных
 USER_REPORTS = {}
 USER_CONTRACT_TYPES = {}
+USER_JURISDICTIONS = {}
 
 # Текст полного дисклеймера
 DISCLAIMER_TEXT = (
@@ -110,14 +111,22 @@ def anonymize_text(text: str) -> str:
     text = re.sub(r'(\+7|8|7)?[\s\-]?\(?\d{3}\)?[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}', '[ТЕЛЕФОН]', text)
     # ИНН / БИН (10, 12 цифр)
     text = re.sub(r'\b\d{10}\b|\b\d{12}\b', '[ИНН/БИН]', text)
-    # Паспортные данные (Серия Номер)
-    text = re.sub(r'\b\d{4}\s\d{6}\b', '[ПАСПОРТ]', text)
+    # Паспортные данные / Удостоверение
+    text = re.sub(r'\b\d{4}\s\d{6}\b', '[ПАСПОРТ/УДОСТОВЕРЕНИЕ]', text)
     return text
 
-# 4. Промпты
+# 4. Описание юрисдикций и промпты
+JURISDICTION_PROMPTS = {
+    "kz": "При анализе строго опирайся на законодательство Республики Казахстан (Гражданский кодекс РК, Предпринимательский кодекс РК и профильные нормативно-правовые акты РК).",
+    "ru": "При анализе строго опирайся на законодательство Российской Федерации (Гражданский кодекс РФ и профильные ФЗ РФ).",
+    "int": "При анализе опирайся на международную практику (International Commercial Law, English Law / Common Law principles, CISG) и стандарты международных контрактов. Ответ давай на языке документа или на русском языке."
+}
+
 PROMPTS = {
     "dev": """
 Ты — юрист, специализирующийся на договорах в IT, дизайне и разработке ПО (Авторский заказ/GDM).
+{jurisdiction_instruction}
+
 Проанализируй договор с фокусом на:
 - Момент перехода исключительных прав (должен быть строго ПОСЛЕ 100% оплаты).
 - Сохранение за исполнителем его наработок, библиотек, исходного кода и личных проектов.
@@ -134,6 +143,8 @@ PROMPTS = {
 """,
     "nda": """
 Ты — юрист, специализирующийся на соглашениях о конфиденциальности (NDA).
+{jurisdiction_instruction}
+
 Проанализируй NDA с фокусом на:
 - Четкость определения "Конфиденциальной информации" (не всё подряд).
 - Разумные сроки действия режима конфиденциальности (оптимально 1-3 года).
@@ -150,6 +161,8 @@ PROMPTS = {
 """,
     "services": """
 Ты — юрист для фрилансеров и самозанятых, оказывающих услуги.
+{jurisdiction_instruction}
+
 Проанализируй договор с фокусом на:
 - Сроки оплаты (не более 5-10 рабочих дней, предотвращение кассовых разрывов).
 - Порядок одностороннего расторжения (компенсация фактически понесенных расходов).
@@ -166,6 +179,8 @@ PROMPTS = {
 """,
     "general": """
 Ты — профессиональный юридический ассистент для фрилансеров и исполнителей.
+{jurisdiction_instruction}
+
 Твоя задача — найти скрытые риски в договоре и предложить их исправление.
 
 Ответь строго по следующей структуре:
@@ -199,11 +214,14 @@ def extract_text_from_docx(docx_bytes: bytes) -> str:
     doc = Document(io.BytesIO(docx_bytes))
     return "\n".join([p.text for p in doc.paragraphs if p.text])
 
-async def analyze_text_with_gemini(text: str, contract_type: str = "general") -> str:
+async def analyze_text_with_gemini(text: str, contract_type: str = "general", jurisdiction: str = "kz") -> str:
     # 1. Выполняем анонимизацию
     clean_text = anonymize_text(text)
     
-    system_instruction = PROMPTS.get(contract_type, PROMPTS["general"])
+    jurisdiction_inst = JURISDICTION_PROMPTS.get(jurisdiction, JURISDICTION_PROMPTS["kz"])
+    raw_prompt = PROMPTS.get(contract_type, PROMPTS["general"])
+    system_instruction = raw_prompt.format(jurisdiction_instruction=jurisdiction_inst)
+    
     prompt_text = f"{system_instruction}\n\nПроанализируй договор:\n\n{clean_text}"
     
     models_to_try = [
@@ -277,7 +295,15 @@ def get_type_keyboard():
         [InlineKeyboardButton(text="🤐 NDA (Конфиденциальность)", callback_data="type_nda")],
         [InlineKeyboardButton(text="🛠 Оказание услуг / Фриланс", callback_data="type_services")],
         [InlineKeyboardButton(text="📄 Общий / Другой договор", callback_data="type_general")],
+        [InlineKeyboardButton(text="🌐 Сменить юрисдикцию", callback_data="change_jurisdiction")],
         [InlineKeyboardButton(text="ℹ️ О сервисе и правовая информация", callback_data="show_disclaimer")]
+    ])
+
+def get_jurisdiction_keyboard():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🇰🇿 Казахстан (ГК РК)", callback_data="jur_kz")],
+        [InlineKeyboardButton(text="🇷🇺 Россия (ГК РФ)", callback_data="jur_ru")],
+        [InlineKeyboardButton(text="🌐 Международное право / English", callback_data="jur_int")]
     ])
 
 async def process_and_reply(message: types.Message, text: str, user_id: int):
@@ -296,10 +322,13 @@ async def process_and_reply(message: types.Message, text: str, user_id: int):
         return
 
     contract_type = USER_CONTRACT_TYPES.get(user_id, "general")
-    status_msg = await message.answer(f"⚖️ Провожу анализ... (Осталось проверок на сегодня: {remaining})")
+    jurisdiction = USER_JURISDICTIONS.get(user_id, "kz")
+    
+    jur_names = {"kz": "🇰🇿 Казахстан", "ru": "🇷🇺 Россия", "int": "🌐 Международное право"}
+    status_msg = await message.answer(f"⚖️ Анализирую договор ({jur_names.get(jurisdiction)})... (Осталось проверок: {remaining})")
     
     try:
-        analysis_result = await analyze_text_with_gemini(text, contract_type)
+        analysis_result = await analyze_text_with_gemini(text, contract_type, jurisdiction)
         
         main_text = analysis_result
         protocol_items = []
@@ -327,11 +356,16 @@ async def process_and_reply(message: types.Message, text: str, user_id: int):
 # 7. Обработчики
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message):
-    USER_CONTRACT_TYPES[message.from_user.id] = "general"
+    user_id = message.from_user.id
+    USER_CONTRACT_TYPES[user_id] = "general"
+    if user_id not in USER_JURISDICTIONS:
+        USER_JURISDICTIONS[user_id] = "kz"  # По умолчанию Казахстан
+
     await message.answer(
         "👋 Привет! Я **LegalGuard** — твой юридический ассистент.\n\n"
         f"Тебе доступно **{DAILY_LIMIT} бесплатные проверки** в день.\n"
-        "Выбери тип договора по кнопкам ниже или просто отправь файл (PDF/DOCX) / текст договора:\n\n"
+        f"Текущая юрисдикция: **🇰🇿 Казахстан**\n\n"
+        "Выбери тип договора или смени юрисдикцию по кнопкам ниже, либо просто отправь файл (PDF/DOCX) или текст договора:\n\n"
         "⚠️ *Сервис предоставляет автоматизированный первичный скрининг и не является юридической консультацией.*",
         reply_markup=get_type_keyboard()
     )
@@ -345,6 +379,25 @@ async def callback_disclaimer(callback: CallbackQuery):
     await callback.answer()
     await callback.message.answer(DISCLAIMER_TEXT)
 
+@dp.callback_query(F.data == "change_jurisdiction")
+async def ask_jurisdiction(callback: CallbackQuery):
+    await callback.answer()
+    await callback.message.answer("Выберите законодательную базу для анализа:", reply_markup=get_jurisdiction_keyboard())
+
+@dp.callback_query(F.data.startswith("jur_"))
+async def set_jurisdiction(callback: CallbackQuery):
+    jur = callback.data.split("_")[1]
+    USER_JURISDICTIONS[callback.from_user.id] = jur
+    
+    names = {
+        "kz": "🇰🇿 Казахстан (ГК РК)",
+        "ru": "🇷🇺 Россия (ГК РФ)",
+        "int": "🌐 Международное право / English"
+    }
+    
+    await callback.answer(f"Законодательство: {names.get(jur)}")
+    await callback.message.answer(f"✅ Установлена законодательная база: **{names.get(jur)}**.\n\nТеперь отправь файл или текст договора.", reply_markup=get_type_keyboard())
+
 @dp.callback_query(F.data.startswith("type_"))
 async def set_contract_type(callback: CallbackQuery):
     ctype = callback.data.split("_")[1]
@@ -357,8 +410,8 @@ async def set_contract_type(callback: CallbackQuery):
         "general": "Общий договор"
     }
     
-    await callback.answer(f"Выбран режим: {names.get(ctype)}")
-    await callback.message.answer(f"✅ Установлен режим проверки: **{names.get(ctype)}**.\n\nОтправь файл или текст договора.")
+    await callback.answer(f"Режим: {names.get(ctype)}")
+    await callback.message.answer(f"✅ Установлен тип договора: **{names.get(ctype)}**.\n\nОтправь файл или текст договора.")
 
 @dp.message(F.document)
 async def handle_document(message: types.Message):
