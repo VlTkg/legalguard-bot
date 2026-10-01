@@ -43,7 +43,7 @@ DISCLAIMER_TEXT = (
     "для автоматического первичного анализа текста. Ответы бота носят исключительно справочный характер.\n\n"
     "2. **Необходимость специалиста:** Бот не заменяет квалифицированного юриста. Перед подписанием критически "
     "важных документов обязательно проконсультируйтесь с профильным юристом.\n\n"
-    "3. **Конфиденциальность:** Мы автоматически анонимизируем персональные данные (ФИО, телефоны, email, ИНН) "
+    "3. **Конфиденциальность:** Мы автоматически анонимизируем персональные данные (ФИО, телефоны, email, ИНН/БИН) "
     "перед передачей текста в нейросеть, однако настоятельно рекомендуем не загружать документы, содержащие строгую "
     "коммерческую или государственную тайну."
 )
@@ -204,6 +204,7 @@ async def start_web_server():
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", PORT)
     await site.start()
+    logging.info(f"Web server started on port {PORT}")
 
 # 6. Вспомогательные функции
 def extract_text_from_pdf(pdf_bytes: bytes) -> str:
@@ -466,9 +467,14 @@ async def send_protocol_file(callback: CallbackQuery):
 # 8. Главный запуск
 async def main():
     init_db()
+    
+    # 1. Запускаем веб-сервер до polling
     await start_web_server()
+    
+    # 2. Очищаем вебхуки и запускаем polling
     await bot.delete_webhook(drop_pending_updates=True)
+    logging.info("Starting Telegram bot polling...")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(main()
