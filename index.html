@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>LegalGuard - Анализ Договора</title>
-  <!-- Telegram WebApp SDK -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
     :root {
@@ -26,21 +25,20 @@
     }
 
     .header {
-      margin-bottom: 20px;
+      margin-bottom: 16px;
     }
 
     .header h2 {
-      margin: 0 0 6px 0;
+      margin: 0 0 4px 0;
       font-size: 22px;
     }
 
     .header p {
       margin: 0;
       color: var(--hint-color);
-      font-size: 14px;
+      font-size: 13px;
     }
 
-    /* Статистика рисков */
     .summary-box {
       display: flex;
       gap: 10px;
@@ -51,28 +49,27 @@
       flex: 1;
       background-color: var(--card-bg);
       border-radius: 12px;
-      padding: 12px;
+      padding: 10px;
       text-align: center;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
     }
 
     .summary-card .count {
       font-size: 20px;
       font-weight: bold;
-      margin-bottom: 4px;
     }
 
     .summary-card .label {
       font-size: 11px;
       color: var(--hint-color);
       text-transform: uppercase;
+      margin-top: 2px;
     }
 
     .count.red { color: #e74c3c; }
     .count.yellow { color: #f39c12; }
     .count.green { color: #2ecc71; }
 
-    /* Список рисков */
     .risk-item {
       background-color: var(--card-bg);
       border-radius: 14px;
@@ -117,7 +114,6 @@
       font-size: 13px;
       font-style: italic;
       margin-bottom: 10px;
-      color: var(--text-color);
     }
 
     .recommendation {
@@ -132,7 +128,6 @@
       border-radius: 8px;
       padding: 10px;
       font-size: 13px;
-      color: var(--text-color);
     }
 
     .proposed-fix-title {
@@ -142,8 +137,57 @@
       font-size: 12px;
     }
 
+    /* Обратная связь по каждому пункту */
+    .clause-feedback {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 12px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(0,0,0,0.05);
+      font-size: 12px;
+      color: var(--hint-color);
+    }
+
+    .vote-btns {
+      display: flex;
+      gap: 6px;
+    }
+
+    .vote-btn {
+      background: none;
+      border: 1px solid rgba(0,0,0,0.1);
+      border-radius: 6px;
+      padding: 4px 8px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    /* Блок общей оценки отчета */
+    .feedback-box {
+      background-color: var(--card-bg);
+      border-radius: 14px;
+      padding: 16px;
+      margin-top: 20px;
+      text-align: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+
+    .feedback-title {
+      font-weight: bold;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+
+    .rating-stars {
+      font-size: 24px;
+      letter-spacing: 6px;
+      cursor: pointer;
+      margin-bottom: 10px;
+    }
+
     .actions {
-      margin-top: 24px;
+      margin-top: 20px;
       display: flex;
       flex-direction: column;
       gap: 10px;
@@ -177,26 +221,24 @@
     <p id="doc-name">Договор разработки ПО №12/26</p>
   </div>
 
-  <!-- Сводка -->
   <div class="summary-box">
     <div class="summary-card">
-      <div class="count red" id="red-count">1</div>
+      <div class="count red">1</div>
       <div class="label">Критично</div>
     </div>
     <div class="summary-card">
-      <div class="count yellow" id="yellow-count">1</div>
+      <div class="count yellow">1</div>
       <div class="label">Внимание</div>
     </div>
     <div class="summary-card">
-      <div class="count green" id="green-count">1</div>
+      <div class="count green">1</div>
       <div class="label">Безопасно</div>
     </div>
   </div>
 
-  <!-- Список найденных пунктов -->
   <div id="risks-container">
     
-    <!-- Карточка 1: Критический риск -->
+    <!-- Карточка 1 -->
     <div class="risk-item high">
       <div class="risk-header">
         <span class="clause-title">Пункт 4.2 — Передача IP прав</span>
@@ -206,15 +248,22 @@
         «Все исключительные права на результаты работ переходят к Заказчику в момент подписания настоящего Договора.»
       </div>
       <div class="recommendation">
-        ⚠️ **Почему опасно:** Исключительные права передаются еще до выполнения работ и их оплаты. Заказчик может забрать исходники и не заплатить.
+        ⚠️ **Почему опасно:** Исключительные права передаются еще до выполнения работ и их оплаты.
       </div>
       <div class="proposed-fix">
         <div class="proposed-fix-title">💡 Предлагаемая редакция:</div>
         «Исключительные права на результаты работ переходят к Заказчику в момент подписания Акта и полной 100% оплаты.»
       </div>
+      <div class="clause-feedback">
+        <span>Полезен разбор?</span>
+        <div class="vote-btns">
+          <button class="vote-btn" onclick="sendVote(1, 'like')">👍</button>
+          <button class="vote-btn" onclick="sendVote(1, 'dislike')">👎</button>
+        </div>
+      </div>
     </div>
 
-    <!-- Карточка 2: Средний риск -->
+    <!-- Карточка 2 -->
     <div class="risk-item medium">
       <div class="risk-header">
         <span class="clause-title">Пункт 6.1 — Приемка и Правки</span>
@@ -224,40 +273,38 @@
         «Исполнитель обязуется вносить изменения и доработки по первому требованию Заказчика до полного утверждения.»
       </div>
       <div class="recommendation">
-        ⚠️ **Почему опасно:** Нет ограничения количества итераций правок. Это может привести к бесконечной бесплатной доработке (Scope Creep).
+        ⚠️️ **Почему опасно:** Нет ограничения количества итераций правок.
       </div>
       <div class="proposed-fix">
         <div class="proposed-fix-title">💡 Предлагаемая редакция:</div>
-        «Исполнитель обязуется внести не более 2 (двух) итераций правок в рамках первоначального Технического задания.»
+        «Исполнитель обязуется внести не более 2 (двух) итераций правок в рамках первоначального ТЗ.»
       </div>
-    </div>
-
-    <!-- Карточка 3: Низкий риск -->
-    <div class="risk-item low">
-      <div class="risk-header">
-        <span class="clause-title">Пункт 8.3 — Порядок Оплаты</span>
-        <span class="badge low">Безопасно</span>
-      </div>
-      <div class="quote-box">
-        «Заказчик производит оплату в течение 5 (пяти) банковских дней с момента подписания Акта приемки.»
-      </div>
-      <div class="recommendation">
-        ✅ **Оценка:** Срок оплаты адекватный и соответствует стандартной практике.
+      <div class="clause-feedback">
+        <span>Полезен разбор?</span>
+        <div class="vote-btns">
+          <button class="vote-btn" onclick="sendVote(2, 'like')">👍</button>
+          <button class="vote-btn" onclick="sendVote(2, 'dislike')">👎</button>
+        </div>
       </div>
     </div>
 
   </div>
 
-  <!-- Кнопки действий -->
+  <!-- Оценка качества разбора -->
+  <div class="feedback-box">
+    <div class="feedback-title">Оцените качество анализа договора</div>
+    <div class="rating-stars" onclick="rateAnalysis(event)">⭐⭐⭐⭐⭐</div>
+    <div style="font-size: 12px; color: var(--hint-color);" id="rating-status">Нажмите на звезду</div>
+  </div>
+
   <div class="actions">
     <button class="btn" onclick="downloadProtocol()">📄 Скачать Протокол разногласий (.docx)</button>
     <button class="btn btn-secondary" onclick="closeWebApp()">Закрыть</button>
   </div>
 
   <script>
-    // Инициализация Telegram WebApp SDK
     const tg = window.Telegram.WebApp;
-    tg.expand(); // Развернуть во весь экран
+    tg.expand();
 
     function closeWebApp() {
       tg.close();
@@ -265,6 +312,18 @@
 
     function downloadProtocol() {
       tg.sendData(JSON.stringify({ action: "download_protocol" }));
+    }
+
+    function sendVote(clauseId, type) {
+      tg.HapticFeedback.impactOccurred('light');
+      tg.sendData(JSON.stringify({ action: "clause_vote", clause_id: clauseId, vote: type }));
+      alert('Спасибо за отзыв!');
+    }
+
+    function rateAnalysis(e) {
+      tg.HapticFeedback.notificationOccurred('success');
+      document.getElementById('rating-status').innerText = 'Спасибо за Вашу оценку! ❤️';
+      tg.sendData(JSON.stringify({ action: "rating", stars: 5 }));
     }
   </script>
 </body>
