@@ -1,363 +1,293 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>LegalGuard Report</title>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <style>
-    :root {
-      --bg-color: var(--tg-theme-bg-color, #f4f5f7);
-      --card-bg: var(--tg-theme-secondary-bg-color, #ffffff);
-      --text-color: var(--tg-theme-text-color, #1c1d21);
-      --hint-color: var(--tg-theme-hint-color, #8e8e93);
-      --button-color: var(--tg-theme-button-color, #2483ff);
-      --button-text-color: var(--tg-theme-button-text-color, #ffffff);
-      
-      --danger-color: #ff3b30;
-      --warning-color: #ff9500;
-      --success-color: #34c759;
-    }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>LegalGuard — Анализ Договора</title>
+    <!-- Telegram WebApp JS Script -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        :root {
+            --bg-color: var(--tg-theme-bg-color, #f4f5f7);
+            --card-bg: var(--tg-theme-secondary-bg-color, #ffffff);
+            --text-color: var(--tg-theme-text-color, #1c1e21);
+            --hint-color: var(--tg-theme-hint-color, #8e8e93);
+            --button-color: var(--tg-theme-button-color, #248277);
+            --button-text-color: var(--tg-theme-button-text-color, #ffffff);
+            --high-risk: #e63946;
+            --med-risk: #f4a261;
+            --low-risk: #2a9d8f;
+        }
 
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background-color: var(--bg-color);
-      color: var(--text-color);
-      margin: 0;
-      padding: 16px;
-      box-sizing: border-box;
-      -webkit-tap-highlight-color: transparent;
-    }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 16px;
+            box-sizing: border-box;
+            -webkit-user-select: none;
+            user-select: none;
+        }
 
-    header {
-      margin-bottom: 20px;
-    }
+        .header {
+            margin-bottom: 20px;
+        }
 
-    .doc-info {
-      font-size: 14px;
-      color: var(--hint-color);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 4px;
-    }
+        .header h1 {
+            font-size: 22px;
+            margin: 0 0 6px 0;
+            font-weight: 700;
+        }
 
-    h1 {
-      font-size: 22px;
-      font-weight: 700;
-      margin: 0 0 16px 0;
-      line-height: 1.3;
-    }
+        .header p {
+            color: var(--hint-color);
+            font-size: 14px;
+            margin: 0;
+        }
 
-    /* Сводка / Статистика */
-    .summary-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
-      margin-bottom: 20px;
-    }
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
 
-    .summary-card {
-      background: var(--card-bg);
-      padding: 12px 8px;
-      border-radius: 12px;
-      text-align: center;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-    }
+        .summary-card {
+            background-color: var(--card-bg);
+            padding: 12px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        }
 
-    .summary-card .count {
-      font-size: 20px;
-      font-weight: 700;
-      display: block;
-      margin-bottom: 2px;
-    }
+        .summary-card .number {
+            font-size: 22px;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
 
-    .summary-card .count.red { color: var(--danger-color); }
-    .summary-card .count.yellow { color: var(--warning-color); }
-    .summary-card .count.green { color: var(--success-color); }
+        .summary-card .label {
+            font-size: 11px;
+            color: var(--hint-color);
+            text-transform: uppercase;
+            font-weight: 600;
+        }
 
-    .summary-card .label {
-      font-size: 11px;
-      color: var(--hint-color);
-    }
+        .summary-card.high .number { color: var(--high-risk); }
+        .summary-card.med .number { color: var(--med-risk); }
+        .summary-card.low .number { color: var(--low-risk); }
 
-    /* Карточки рисков */
-    .risk-item {
-      background: var(--card-bg);
-      border-radius: 14px;
-      padding: 16px;
-      margin-bottom: 16px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-      border-left: 5px solid #ccc;
-    }
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin: 20px 0 12px 0;
+        }
 
-    .risk-item.high { border-left-color: var(--danger-color); }
-    .risk-item.medium { border-left-color: var(--warning-color); }
-    .risk-item.low { border-left-color: var(--success-color); }
+        .risk-card {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            border-left: 5px solid transparent;
+            transition: transform 0.1s ease;
+        }
 
-    .risk-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 12px;
-    }
+        .risk-card.high { border-left-color: var(--high-risk); }
+        .risk-card.med { border-left-color: var(--med-risk); }
+        .risk-card.low { border-left-color: var(--low-risk); }
 
-    .clause-title {
-      font-weight: 700;
-      font-size: 16px;
-    }
+        .risk-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 600;
+            font-size: 15px;
+            margin-bottom: 8px;
+        }
 
-    .badge {
-      font-size: 11px;
-      padding: 4px 8px;
-      border-radius: 6px;
-      font-weight: 600;
-      text-transform: uppercase;
-    }
+        .risk-badge {
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-weight: 600;
+            color: #fff;
+        }
 
-    .badge.high { background: rgba(255, 59, 48, 0.12); color: var(--danger-color); }
-    .badge.medium { background: rgba(255, 149, 0, 0.12); color: var(--warning-color); }
-    .badge.low { background: rgba(52, 199, 89, 0.12); color: var(--success-color); }
+        .badge-high { background-color: var(--high-risk); }
+        .badge-med { background-color: var(--med-risk); }
+        .badge-low { background-color: var(--low-risk); }
 
-    .quote-box {
-      background: rgba(142, 142, 147, 0.08);
-      padding: 10px 12px;
-      border-radius: 8px;
-      font-size: 13px;
-      font-style: italic;
-      line-height: 1.4;
-      margin-bottom: 10px;
-    }
+        .risk-body {
+            font-size: 13px;
+            line-height: 1.5;
+            color: var(--text-color);
+        }
 
-    .recommendation {
-      font-size: 13px;
-      line-height: 1.4;
-      margin-bottom: 10px;
-    }
+        .text-block {
+            margin-top: 8px;
+            padding: 8px 10px;
+            background-color: rgba(0,0,0,0.03);
+            border-radius: 8px;
+            font-size: 12px;
+        }
 
-    .proposed-fix {
-      background: rgba(52, 199, 89, 0.08);
-      border: 1px dashed var(--success-color);
-      padding: 10px 12px;
-      border-radius: 8px;
-      font-size: 13px;
-      line-height: 1.4;
-    }
+        .text-block-title {
+            font-weight: 600;
+            color: var(--hint-color);
+            margin-bottom: 4px;
+            font-size: 11px;
+            text-transform: uppercase;
+        }
 
-    .proposed-fix-title {
-      font-weight: 600;
-      color: var(--success-color);
-      margin-bottom: 4px;
-    }
+        .copy-btn {
+            background-color: var(--button-color);
+            color: var(--button-text-color);
+            border: none;
+            width: 100%;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-top: 10px;
+            cursor: pointer;
+        }
 
-    .clause-feedback {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-top: 12px;
-      padding-top: 8px;
-      border-top: 1px solid rgba(142, 142, 147, 0.15);
-      font-size: 12px;
-      color: var(--hint-color);
-    }
-
-    .vote-btns {
-      display: flex;
-      gap: 8px;
-    }
-
-    .vote-btn {
-      background: none;
-      border: 1px solid var(--hint-color);
-      border-radius: 6px;
-      padding: 4px 8px;
-      cursor: pointer;
-      font-size: 12px;
-    }
-
-    /* Блок оценки сервиса */
-    .rating-section {
-      background: var(--card-bg);
-      border-radius: 14px;
-      padding: 16px;
-      text-align: center;
-      margin-top: 24px;
-      margin-bottom: 30px;
-    }
-
-    .rating-stars {
-      font-size: 24px;
-      margin: 8px 0;
-      cursor: pointer;
-    }
-
-    .action-btn {
-      width: 100%;
-      background-color: var(--button-color);
-      color: var(--button-text-color);
-      border: none;
-      border-radius: 12px;
-      padding: 14px;
-      font-size: 15px;
-      font-weight: 600;
-      cursor: pointer;
-      margin-bottom: 12px;
-    }
-
-    .action-btn.secondary {
-      background-color: transparent;
-      color: var(--button-color);
-      border: 1px solid var(--button-color);
-    }
-  </style>
+        #loading, #error {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--hint-color);
+            font-size: 15px;
+        }
+    </style>
 </head>
 <body>
 
-  <header>
-    <div class="doc-info">Правовой разбор</div>
-    <h1 id="doc-name">Загрузка документа...</h1>
-    
-    <div class="summary-grid">
-      <div class="summary-card">
-        <span class="count red">0</span>
-        <span class="label">Высокий риск</span>
-      </div>
-      <div class="summary-card">
-        <span class="count yellow">0</span>
-        <span class="label">Средний риск</span>
-      </div>
-      <div class="summary-card">
-        <span class="count green">0</span>
-        <span class="label">Низкий риск</span>
-      </div>
+    <div id="loading">Загрузка юридического отчета...</div>
+    <div id="error" style="display: none;"></div>
+
+    <div id="content" style="display: none;">
+        <div class="header">
+            <h1 id="doc-title">Договор</h1>
+            <p>Интерактивный экспресс-анализ рисков</p>
+        </div>
+
+        <div class="summary-cards">
+            <div class="summary-card high">
+                <div class="number" id="count-high">0</div>
+                <div class="label">Высокие</div>
+            </div>
+            <div class="summary-card med">
+                <div class="number" id="count-med">0</div>
+                <div class="label">Средние</div>
+            </div>
+            <div class="summary-card low">
+                <div class="number" id="count-low">0</div>
+                <div class="label">Низкие</div>
+            </div>
+        </div>
+
+        <div class="section-title">Детальный разбор рисков</div>
+        <div id="risks-list"></div>
     </div>
-  </header>
 
-  <main id="risks-container">
-    <!-- Сюда динамически загрузятся карточки отчетов -->
-    <div style="text-align: center; color: var(--hint-color); padding: 40px 0;">
-      Ожидание данных от LegalGuard...
-    </div>
-  </main>
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
 
-  <section class="rating-section">
-    <div style="font-weight: 600; font-size: 14px;">Оцените качество разбора</div>
-    <div class="rating-stars" onclick="rateAnalysis(event)">⭐⭐⭐⭐⭐</div>
-    <div id="rating-status" style="font-size: 12px; color: var(--hint-color);">Нажмите на звезду для оценки</div>
-  </section>
+        const urlParams = new URLSearchParams(window.location.search);
+        const userId = urlParams.get('user_id') || (tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : null);
 
-  <footer>
-    <button class="action-btn" onclick="downloadProtocol()">📄 Скачать Протокол разногласий (.docx)</button>
-    <button class="action-btn secondary" onclick="closeWebApp()">Закрыть окно</button>
-  </footer>
-
-  <script>
-    const tg = window.Telegram.WebApp;
-    tg.expand();
-
-    function closeWebApp() {
-      tg.close();
-    }
-
-    function downloadProtocol() {
-      tg.sendData(JSON.stringify({ action: "download_protocol" }));
-    }
-
-    function sendVote(clauseId, type) {
-      if (tg.HapticFeedback) {
-        tg.HapticFeedback.impactOccurred('light');
-      }
-      tg.sendData(JSON.stringify({ action: "clause_vote", clause_id: clauseId, vote: type }));
-      alert('Спасибо за отзыв!');
-    }
-
-    function rateAnalysis(e) {
-      if (tg.HapticFeedback) {
-        tg.HapticFeedback.notificationOccurred('success');
-      }
-      document.getElementById('rating-status').innerText = 'Спасибо за Вашу оценку! ❤️';
-      tg.sendData(JSON.stringify({ action: "rating", stars: 5 }));
-    }
-
-    // Динамическая загрузка данных из API bot.py
-    async function loadReportData() {
-      const urlParams = new URLSearchParams(window.location.search);
-      const userId = urlParams.get('user_id') || (tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : null);
-
-      if (!userId) {
-        document.getElementById('risks-container').innerHTML = `
-          <div style="text-align: center; color: var(--hint-color); padding: 20px;">
-            Для отображения отчета загрузите документ в чат бота <b>@LegalGuardTV_bot</b>.
-          </div>`;
-        return;
-      }
-
-      try {
-        const response = await fetch(`/api/report?user_id=${userId}`);
-        if (!response.ok) {
-          document.getElementById('risks-container').innerHTML = `
-            <div style="text-align: center; color: var(--hint-color); padding: 20px;">
-              Отчет не найден или устарел. Отправьте документ в чат заново.
-            </div>`;
-          return;
+        if (!userId) {
+            showError("Не удалось определить ID пользователя. Откройте отчет через бота LegalGuard.");
+        } else {
+            fetchReport(userId);
         }
 
-        const data = await response.json();
-
-        // Заголовок документа
-        if (data.doc_title) {
-          document.getElementById('doc-name').innerText = data.doc_title;
+        async function fetchReport(uid) {
+            try {
+                const response = await fetch(`/api/report?user_id=${uid}`);
+                if (!response.ok) {
+                    throw new Error("Отчет не найден или устарел. Отправьте файл заново.");
+                }
+                const data = await response.json();
+                renderReport(data);
+            } catch (err) {
+                showError(err.message);
+            }
         }
 
-        // Счетчики
-        if (data.summary) {
-          document.querySelector('.count.red').innerText = data.summary.high || 0;
-          document.querySelector('.count.yellow').innerText = data.summary.medium || 0;
-          document.querySelector('.count.green').innerText = data.summary.low || 0;
+        function showError(msg) {
+            document.getElementById('loading').style.display = 'none';
+            const errDiv = document.getElementById('error');
+            errDiv.innerText = msg;
+            errDiv.style.display = 'block';
         }
 
-        // Карточки рисков
-        if (data.risks && data.risks.length > 0) {
-          const container = document.getElementById('risks-container');
-          container.innerHTML = '';
+        function renderReport(data) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('content').style.display = 'block';
 
-          data.risks.forEach(risk => {
-            const levelClass = risk.level === 'high' ? 'high' : (risk.level === 'medium' ? 'medium' : 'low');
-            const levelText = risk.level === 'high' ? 'Высокий риск' : (risk.level === 'medium' ? 'Средний риск' : 'Низкий риск');
+            document.getElementById('doc-title').innerText = data.doc_title || 'Анализ Договора';
+            document.getElementById('count-high').innerText = data.summary.high || 0;
+            document.getElementById('count-med').innerText = data.summary.medium || 0;
+            document.getElementById('count-low').innerText = data.summary.low || 0;
 
-            const cardHtml = `
-              <div class="risk-item ${levelClass}">
-                <div class="risk-header">
-                  <span class="clause-title">${risk.clause}</span>
-                  <span class="badge ${levelClass}">${levelText}</span>
-                </div>
-                <div class="quote-box">
-                  «${risk.original}»
-                </div>
-                <div class="recommendation">
-                  ⚠️ <b>Обоснование:</b> ${risk.comment}
-                </div>
-                <div class="proposed-fix">
-                  <div class="proposed-fix-title">💡 Предлагаемая редакция:</div>
-                  «${risk.proposed}»
-                </div>
-                <div class="clause-feedback">
-                  <span>Полезен разбор?</span>
-                  <div class="vote-btns">
-                    <button class="vote-btn" onclick="sendVote(${risk.id}, 'like')">👍</button>
-                    <button class="vote-btn" onclick="sendVote(${risk.id}, 'dislike')">👎</button>
-                  </div>
-                </div>
-              </div>
-            `;
-            container.insertAdjacentHTML('beforeend', cardHtml);
-          });
+            const listContainer = document.getElementById('risks-list');
+            listContainer.innerHTML = '';
+
+            if (!data.risks || data.risks.length === 0) {
+                listContainer.innerHTML = '<div style="text-align:center; color: var(--hint-color); padding: 20px;">Критических рисков не обнаружено.</div>';
+                return;
+            }
+
+            data.risks.forEach((risk) => {
+                const card = document.createElement('div');
+                card.className = `risk-card ${risk.level}`;
+
+                const levelText = risk.level === 'high' ? 'Высокий risk' : (risk.level === 'med' ? 'Средний risk' : 'Низкий risk');
+                const badgeClass = `badge-${risk.level}`;
+
+                card.innerHTML = `
+                    <div class="risk-header">
+                        <span>Пункт: ${escapeHtml(risk.clause)}</span>
+                        <span class="risk-badge ${badgeClass}">${levelText}</span>
+                    </div>
+                    <div class="risk-body">
+                        <div style="margin-bottom: 6px;">${escapeHtml(risk.comment)}</div>
+                        <div class="text-block">
+                            <div class="text-block-title">Исходная формулировка:</div>
+                            <i>"${escapeHtml(risk.original)}"</i>
+                        </div>
+                        <div class="text-block">
+                            <div class="text-block-title">Предлагаемая правка:</div>
+                            <b>"${escapeHtml(risk.proposed)}"</b>
+                        </div>
+                        <button class="copy-btn" onclick="copyToClipboard('${escapeJs(risk.proposed)}')">Скопировать правку</button>
+                    </div>
+                `;
+                listContainer.appendChild(card);
+            });
         }
-      } catch (e) {
-        console.error("Failed to load report data:", e);
-      }
-    }
 
-    document.addEventListener('DOMContentLoaded', loadReportData);
-  </script>
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                if (tg.HapticFeedback) {
+                    tg.HapticFeedback.notificationOccurred('success');
+                }
+                tg.showAlert("Предлагаемая правка скопирована в буфер обмена!");
+            });
+        }
+
+        function escapeHtml(str) {
+            return (str || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        function escapeJs(str) {
+            return (str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
+        }
+    </script>
 </body>
 </html>
