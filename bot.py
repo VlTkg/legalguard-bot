@@ -1,3 +1,4 @@
+Python
 import asyncio
 import io
 import os
@@ -7,7 +8,7 @@ import sqlite3
 from datetime import datetime
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import CommandStart, Command
-from aiogram.types import BufferedInputFile, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from aiogram.types import BufferedInputFile, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, WebAppInfo
 from aiohttp import web
 from docx import Document
 import google.generativeai as genai
@@ -194,9 +195,16 @@ PROMPTS = {
 async def handle_health(request):
     return web.Response(text="OK", status=200)
 
+async def handle_webapp(request):
+    """Отдает HTML-страницу Mini App"""
+    if os.path.exists("index.html"):
+        return web.FileResponse("index.html")
+    return web.Response(text="WebApp index.html not found", status=404)
+
 async def start_web_server():
     app = web.Application()
     app.router.add_get("/", handle_health)
+    app.router.add_get("/webapp", handle_webapp)
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", PORT)
@@ -288,6 +296,10 @@ def create_protocol_docx(protocol_data: list) -> bytes:
 
 def get_type_keyboard():
     return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text="✨ Открыть интерактивный отчет (WebApp)", 
+            web_app=WebAppInfo(url="https://legalguard-bot.onrender.com/webapp")
+        )],
         [InlineKeyboardButton(text="💻 Разработка ПО / Дизайн", callback_data="type_dev")],
         [InlineKeyboardButton(text="🤐 NDA (Конфиденциальность)", callback_data="type_nda")],
         [InlineKeyboardButton(text="🛠 Оказание услуг / Фриланс", callback_data="type_services")],
@@ -344,11 +356,13 @@ async def process_and_reply(message: types.Message, text: str, user_id: int):
 
         USER_REPORTS[user_id] = protocol_items
 
-        kb = None
-        if protocol_items:
-            kb = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="📄 Скачать Протокол разногласий (.docx)", callback_data="get_protocol")]
-            ])
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(
+                text="✨ Открыть в интерактивном WebApp", 
+                web_app=WebAppInfo(url="https://legalguard-bot.onrender.com/webapp")
+            )],
+            [InlineKeyboardButton(text="📄 Скачать Протокол разногласий (.docx)", callback_data="get_protocol")]
+        ])
 
         await status_msg.edit_text(main_text, reply_markup=kb)
 
@@ -369,7 +383,7 @@ async def cmd_start(message: types.Message):
         f"Тебе доступно **{DAILY_LIMIT} бесплатные проверки** в день.\n"
         f"Текущая юрисдикция: **🇰🇿 Казахстан**\n\n"
         "Выбери тип договора или смени юрисдикцию по кнопкам ниже, либо просто отправь файл (PDF/DOCX) или текст договора:\n\n"
-        "⚠️️ *Сервис предоставляет автоматизированный первичный скрининг и не является юридической консультацией.*",
+        "⚠️ *Сервис предоставляет автоматизированный первичный скрининг и не является юридической консультацией.*",
         reply_markup=get_type_keyboard()
     )
 
