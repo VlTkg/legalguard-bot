@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>LegalGuard — Анализ Договора</title>
-    <!-- Telegram WebApp JS Script -->
+    <title>LegalGuard — Экспресс-Анализ</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         :root {
@@ -14,9 +13,9 @@
             --hint-color: var(--tg-theme-hint-color, #8e8e93);
             --button-color: var(--tg-theme-button-color, #248277);
             --button-text-color: var(--tg-theme-button-text-color, #ffffff);
-            --high-risk: #e63946;
-            --med-risk: #f4a261;
-            --low-risk: #2a9d8f;
+            --high-risk: #ff3b30;
+            --med-risk: #ff9500;
+            --low-risk: #34c759;
         }
 
         body {
@@ -88,10 +87,9 @@
             background-color: var(--card-bg);
             border-radius: 12px;
             padding: 14px;
-            margin-bottom: 12px;
+            margin-bottom: 14px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.04);
             border-left: 5px solid transparent;
-            transition: transform 0.1s ease;
         }
 
         .risk-card.high { border-left-color: var(--high-risk); }
@@ -122,7 +120,6 @@
         .risk-body {
             font-size: 13px;
             line-height: 1.5;
-            color: var(--text-color);
         }
 
         .text-block {
@@ -152,6 +149,51 @@
             font-weight: 600;
             margin-top: 10px;
             cursor: pointer;
+        }
+
+        /* Блок обратной связи по пункту */
+        .clause-feedback {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 12px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(142, 142, 147, 0.15);
+            font-size: 12px;
+            color: var(--hint-color);
+        }
+
+        .vote-btns {
+            display: flex;
+            gap: 6px;
+        }
+
+        .vote-btn {
+            background: none;
+            border: 1px solid var(--hint-color);
+            border-radius: 6px;
+            padding: 3px 8px;
+            cursor: pointer;
+            font-size: 12px;
+            color: var(--text-color);
+        }
+
+        /* Общий блок оценки работы бота */
+        .rating-section {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+            margin-top: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        }
+
+        .rating-stars {
+            font-size: 26px;
+            margin: 10px 0;
+            cursor: pointer;
+            letter-spacing: 4px;
         }
 
         #loading, #error {
@@ -190,6 +232,13 @@
 
         <div class="section-title">Детальный разбор рисков</div>
         <div id="risks-list"></div>
+
+        <!-- Оценка сервиса -->
+        <section class="rating-section">
+            <div style="font-weight: 600; font-size: 14px;">Оцените качество разбора</div>
+            <div class="rating-stars" onclick="rateAnalysis(event)">⭐⭐⭐⭐⭐</div>
+            <div id="rating-status" style="font-size: 12px; color: var(--hint-color);">Нажмите на звезду для оценки</div>
+        </section>
     </div>
 
     <script>
@@ -266,6 +315,14 @@
                             <b>"${escapeHtml(risk.proposed)}"</b>
                         </div>
                         <button class="copy-btn" onclick="copyToClipboard('${escapeJs(risk.proposed)}')">Скопировать правку</button>
+                        
+                        <div class="clause-feedback">
+                            <span>Полезен разбор?</span>
+                            <div class="vote-btns">
+                                <button class="vote-btn" onclick="sendVote(${risk.id}, 'like', this)">👍</button>
+                                <button class="vote-btn" onclick="sendVote(${risk.id}, 'dislike', this)">👎</button>
+                            </div>
+                        </div>
                     </div>
                 `;
                 listContainer.appendChild(card);
@@ -279,6 +336,24 @@
                 }
                 tg.showAlert("Предлагаемая правка скопирована в буфер обмена!");
             });
+        }
+
+        function sendVote(clauseId, type, btnElement) {
+            if (tg.HapticFeedback) {
+                tg.HapticFeedback.impactOccurred('light');
+            }
+            tg.sendData(JSON.stringify({ action: "clause_vote", clause_id: clauseId, vote: type }));
+            
+            const parent = btnElement.parentElement;
+            parent.innerHTML = '<span style="color: var(--low-risk); font-weight:600;">Спасибо за отзыв!</span>';
+        }
+
+        function rateAnalysis(e) {
+            if (tg.HapticFeedback) {
+                tg.HapticFeedback.notificationOccurred('success');
+            }
+            document.getElementById('rating-status').innerText = 'Спасибо за Вашу оценку! ❤️';
+            tg.sendData(JSON.stringify({ action: "rating", stars: 5 }));
         }
 
         function escapeHtml(str) {
