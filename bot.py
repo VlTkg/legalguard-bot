@@ -297,7 +297,7 @@ def get_type_keyboard():
         [InlineKeyboardButton(text="🛠 Оказание услуг / Фриланс", callback_data="type_services")],
         [InlineKeyboardButton(text="📄 Общий / Другой договор", callback_data="type_general")],
         [InlineKeyboardButton(text="🌐 Сменить юрисдикцию", callback_data="change_jurisdiction")],
-        [InlineKeyboardButton(text="ℹ️ О сервисе и правовая информация", callback_data="show_disclaimer")]
+        [InlineKeyboardButton(text="ℹ️️ О сервисе и правовая информация", callback_data="show_disclaimer")]
     ])
 
 def get_jurisdiction_keyboard():
@@ -477,4 +477,4 @@ async def main():
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    asyncio.run(main()
+    asyncio.run(main())
