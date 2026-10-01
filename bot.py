@@ -193,7 +193,7 @@ PROMPTS = {
 """
 }
 
-# 5. Встроенный веб-сервер
+# 5. Встроенный веб-сервер (решает проблему Port Scan Timeout)
 async def handle_health(request):
     return web.Response(text="OK", status=200)
 
@@ -223,6 +223,7 @@ async def handle_get_report_api(request):
 async def start_web_server():
     app = web.Application()
     app.router.add_get("/", handle_health)
+    app.router.add_get("/health", handle_health)
     app.router.add_get("/webapp", handle_webapp)
     app.router.add_get("/api/report", handle_get_report_api)
     runner = web.AppRunner(app)
@@ -326,7 +327,7 @@ def get_type_keyboard(user_id: int):
         [InlineKeyboardButton(text="🛠 Оказание услуг / Фриланс", callback_data="type_services")],
         [InlineKeyboardButton(text="📄 Общий / Другой договор", callback_data="type_general")],
         [InlineKeyboardButton(text="🌐 Сменить юрисдикцию", callback_data="change_jurisdiction")],
-        [InlineKeyboardButton(text="ℹ️ О сервисе и правовая информация", callback_data="show_disclaimer")]
+        [InlineKeyboardButton(text="ℹ️️ О сервисе и правовая информация", callback_data="show_disclaimer")]
     ])
 
 def get_jurisdiction_keyboard():
@@ -554,7 +555,7 @@ async def main():
     except Exception as e:
         logging.warning(f"Failed to set Menu Button: {e}")
 
-    # 2. Запускаем веб-сервер до polling
+    # 2. Запускаем веб-сервер до polling (слушает PORT от Render)
     await start_web_server()
     
     # 3. Очищаем вебхуки и запускаем polling
