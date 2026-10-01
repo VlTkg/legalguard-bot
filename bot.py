@@ -4,10 +4,11 @@ import os
 import re
 import logging
 import sqlite3
+import json
 from datetime import datetime
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import CommandStart, Command
-from aiogram.types import BufferedInputFile, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, WebAppInfo
+from aiogram.types import BufferedInputFile, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, WebAppInfo, MenuButtonWebApp
 from aiohttp import web
 from docx import Document
 import google.generativeai as genai
@@ -21,6 +22,7 @@ TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 PORT = int(os.environ.get("PORT", 10000))
 DAILY_LIMIT = 3  # Бесплатный дневной лимит проверок
+BASE_URL = "https://legalguard-bot.onrender.com"  # Ваш URL на Render
 
 if not TELEGRAM_TOKEN or not GEMINI_API_KEY:
     raise ValueError("Переменные окружения TELEGRAM_TOKEN или GEMINI_API_KEY не заданы!")
@@ -33,6 +35,7 @@ genai.configure(api_key=GEMINI_API_KEY)
 
 # Хранилища временных данных
 USER_REPORTS = {}
+USER_WEBAPP_DATA = {}  # Хранение JSON-структуры для WebApp
 USER_CONTRACT_TYPES = {}
 USER_JURISDICTIONS = {}
 
@@ -200,10 +203,28 @@ async def handle_webapp(request):
         return web.FileResponse("index.html")
     return web.Response(text="WebApp index.html not found", status=404)
 
+async def handle_get_report_api(request):
+    """API для получения JSON-отчета в WebApp"""
+    user_id_str = request.query.get("user_id")
+    if not user_id_str:
+        return web.json_response({"error": "No user_id provided"}, status=400)
+    
+    try:
+        user_id = int(user_id_str)
+    except ValueError:
+        return web.json_response({"error": "Invalid user_id"}, status=400)
+        
+    data = USER_WEBAPP_DATA.get(user_id)
+    if not data:
+        return web.json_response({"error": "Report not found or expired"}, status=404)
+        
+    return web.json_response(data)
+
 async def start_web_server():
     app = web.Application()
     app.router.add_get("/", handle_health)
     app.router.add_get("/webapp", handle_webapp)
+    app.router.add_get("/api/report", handle_get_report_api)
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", PORT)
@@ -293,11 +314,12 @@ def create_protocol_docx(protocol_data: list) -> bytes:
     doc.save(file_stream)
     return file_stream.getvalue()
 
-def get_type_keyboard():
+def get_type_keyboard(user_id: int):
+    webapp_url = f"{BASE_URL}/webapp?user_id={user_id}"
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
             text="✨ Открыть интерактивный отчет (WebApp)", 
-            web_app=WebAppInfo(url="https://legalguard-bot.onrender.com/webapp")
+            web_app=WebAppInfo(url=webapp_url)
         )],
         [InlineKeyboardButton(text="💻 Разработка ПО / Дизайн", callback_data="type_dev")],
         [InlineKeyboardButton(text="🤐 NDA (Конфиденциальность)", callback_data="type_nda")],
@@ -315,7 +337,23 @@ def get_jurisdiction_keyboard():
         [InlineKeyboardButton(text="🌐 Международное право / English", callback_data="jur_int")]
     ])
 
-async def process_and_reply(message: types.Message, text: str, user_id: int):
+def parse_protocol_for_webapp(protocol_items: list) -> list:
+    """Преобразует строки протокола в структурированный JSON для WebApp"""
+    items = []
+    for idx, item in enumerate(protocol_items, 1):
+        parts = item.split("||")
+        if len(parts) == 4:
+            items.append({
+                "id": idx,
+                "clause": parts[0].strip(),
+                "level": "high" if idx == 1 else ("medium" if idx == 2 else "low"),
+                "original": parts[1].strip(),
+                "comment": parts[3].strip(),
+                "proposed": parts[2].strip()
+            })
+    return items
+
+async def process_and_reply(message: types.Message, text: str, user_id: int, doc_title: str = "Договор"):
     allowed, remaining = check_and_update_limit(
         user_id=user_id,
         username=message.from_user.username or "",
@@ -339,7 +377,7 @@ async def process_and_reply(message: types.Message, text: str, user_id: int):
         "uae": "🇦🇪 ОАЭ (UAE / DIFC)",
         "int": "🌐 Международное право / English"
     }
-    status_msg = await message.answer(f"⚖️️ Анализирую договор ({jur_names.get(jurisdiction)})... (Осталось проверок: {remaining})")
+    status_msg = await message.answer(f"⚖ Анализирую договор ({jur_names.get(jurisdiction)})... (Осталось проверок: {remaining})")
     
     try:
         analysis_result = await analyze_text_with_gemini(text, contract_type, jurisdiction)
@@ -355,10 +393,28 @@ async def process_and_reply(message: types.Message, text: str, user_id: int):
 
         USER_REPORTS[user_id] = protocol_items
 
+        # Подготовка данных для WebApp
+        parsed_risks = parse_protocol_for_webapp(protocol_items)
+        high_cnt = sum(1 for r in parsed_risks if r['level'] == 'high')
+        med_cnt = sum(1 for r in parsed_risks if r['level'] == 'medium')
+        low_cnt = sum(1 for r in parsed_risks if r['level'] == 'low')
+
+        USER_WEBAPP_DATA[user_id] = {
+            "doc_title": doc_title,
+            "summary": {
+                "high": high_cnt,
+                "medium": med_cnt,
+                "low": low_cnt
+            },
+            "risks": parsed_risks
+        }
+
+        webapp_url = f"{BASE_URL}/webapp?user_id={user_id}"
+
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(
                 text="✨ Открыть в интерактивном WebApp", 
-                web_app=WebAppInfo(url="https://legalguard-bot.onrender.com/webapp")
+                web_app=WebAppInfo(url=webapp_url)
             )],
             [InlineKeyboardButton(text="📄 Скачать Протокол разногласий (.docx)", callback_data="get_protocol")]
         ])
@@ -383,7 +439,7 @@ async def cmd_start(message: types.Message):
         f"Текущая юрисдикция: **🇰🇿 Казахстан**\n\n"
         "Выбери тип договора или смени юрисдикцию по кнопкам ниже, либо просто отправь файл (PDF/DOCX) или текст договора:\n\n"
         "⚠️ *Сервис предоставляет автоматизированный первичный скрининг и не является юридической консультацией.*",
-        reply_markup=get_type_keyboard()
+        reply_markup=get_type_keyboard(user_id)
     )
 
 @dp.message(Command("disclaimer"))
@@ -413,7 +469,7 @@ async def set_jurisdiction(callback: CallbackQuery):
     }
     
     await callback.answer(f"Законодательство: {names.get(jur)}")
-    await callback.message.answer(f"✅ Установлена законодательная база: **{names.get(jur)}**.\n\nТеперь отправь файл или текст договора.", reply_markup=get_type_keyboard())
+    await callback.message.answer(f"✅ Установлена законодательная база: **{names.get(jur)}**.\n\nТеперь отправь файл или текст договора.", reply_markup=get_type_keyboard(callback.from_user.id))
 
 @dp.callback_query(F.data.startswith("type_"))
 async def set_contract_type(callback: CallbackQuery):
@@ -432,8 +488,10 @@ async def set_contract_type(callback: CallbackQuery):
 
 @dp.message(F.document)
 async def handle_document(message: types.Message):
-    file_name = message.document.file_name.lower()
-    if not (file_name.endswith('.pdf') or file_name.endswith('.docx')):
+    file_name = message.document.file_name or "Договор"
+    file_name_lower = file_name.lower()
+    
+    if not (file_name_lower.endswith('.pdf') or file_name_lower.endswith('.docx')):
         await message.answer("Пожалуйста, отправьте файл в формате PDF или DOCX.")
         return
 
@@ -442,7 +500,7 @@ async def handle_document(message: types.Message):
         file = await bot.get_file(message.document.file_id)
         file_bytes = await bot.download_file(file.file_path)
 
-        if file_name.endswith('.pdf'):
+        if file_name_lower.endswith('.pdf'):
             text = extract_text_from_pdf(file_bytes.read())
         else:
             text = extract_text_from_docx(file_bytes.read())
@@ -452,7 +510,7 @@ async def handle_document(message: types.Message):
             return
 
         await status_msg.delete()
-        await process_and_reply(message, text, message.from_user.id)
+        await process_and_reply(message, text, message.from_user.id, doc_title=file_name)
 
     except Exception as e:
         logging.error(f"Error downloading document: {e}")
@@ -463,7 +521,7 @@ async def handle_text(message: types.Message):
     if len(message.text.strip()) < 20:
         await message.answer("Пожалуйста, выберите тип договора по кнопкам выше или отправьте более подробный текст договора.")
         return
-    await process_and_reply(message, message.text, message.from_user.id)
+    await process_and_reply(message, message.text, message.from_user.id, doc_title="Текстовый договор")
 
 @dp.callback_query(F.data == "get_protocol")
 async def send_protocol_file(callback: CallbackQuery):
@@ -484,10 +542,22 @@ async def send_protocol_file(callback: CallbackQuery):
 async def main():
     init_db()
     
-    # 1. Запускаем веб-сервер до polling
+    # 1. Установка постоянной кнопки вызова WebApp (Menu Button - Вариант А)
+    try:
+        await bot.set_chat_menu_button(
+            menu_button=MenuButtonWebApp(
+                text="🛡 LegalGuard",
+                web_app=WebAppInfo(url=f"{BASE_URL}/webapp")
+            )
+        )
+        logging.info("Menu Button configured successfully!")
+    except Exception as e:
+        logging.warning(f"Failed to set Menu Button: {e}")
+
+    # 2. Запускаем веб-сервер до polling
     await start_web_server()
     
-    # 2. Очищаем вебхуки и запускаем polling
+    # 3. Очищаем вебхуки и запускаем polling
     await bot.delete_webhook(drop_pending_updates=True)
     logging.info("Starting Telegram bot polling...")
     await dp.start_polling(bot)
