@@ -1,4 +1,3 @@
-Python
 import asyncio
 import io
 import os
