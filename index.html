@@ -1,599 +1,158 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>LegalGuard — Экспресс-Анализ</title>
-    <script src="[https://telegram.org/js/telegram-web-app.js](https://telegram.org/js/telegram-web-app.js)"></script>
-    <style>
-        :root {
-            --bg-color: var(--tg-theme-bg-color, #f4f5f7);
-            --card-bg: var(--tg-theme-secondary-bg-color, #ffffff);
-            --text-color: var(--tg-theme-text-color, #1c1e21);
-            --hint-color: var(--tg-theme-hint-color, #8e8e93);
-            --button-color: var(--tg-theme-button-color, #248277);
-            --button-text-color: var(--tg-theme-button-text-color, #ffffff);
-            --border-color: rgba(142, 142, 147, 0.3);
-            --high-risk: #ff3b30;
-            --med-risk: #ff9500;
-            --low-risk: #34c759;
-        }
-
-        * {
-            box-sizing: border-box;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            margin: 0;
-            padding: 16px;
-        }
-
-        input, textarea {
-            -webkit-user-select: text !important;
-            user-select: text !important;
-        }
-
-        .header {
-            margin-bottom: 20px;
-        }
-
-        .header h1 {
-            font-size: 22px;
-            margin: 0 0 4px 0;
-            font-weight: 700;
-        }
-
-        .header p {
-            color: var(--hint-color);
-            font-size: 13px;
-            margin: 0;
-        }
-
-        .form-group {
-            margin-bottom: 16px;
-        }
-
-        .form-label {
-            font-size: 11px;
-            font-weight: 700;
-            color: var(--hint-color);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 6px;
-            display: block;
-        }
-
-        .select-input, .input-area, .file-upload-box {
-            width: 100%;
-            border: 1px solid var(--border-color) !important;
-            border-radius: 10px;
-            padding: 12px;
-            font-size: 13px;
-            background: var(--card-bg);
-            color: var(--text-color);
-            font-family: inherit;
-            outline: none;
-            transition: border-color 0.2s;
-            box-sizing: border-box;
-        }
-
-        .select-input:focus, .input-area:focus {
-            border-color: var(--button-color) !important;
-        }
-
-        .select-input {
-            appearance: none;
-            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
-            background-repeat: no-repeat;
-            background-position: right 12px center;
-            background-size: 16px;
-        }
-
-        .file-upload-box {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            cursor: pointer;
-            position: relative;
-        }
-
-        .file-upload-box input[type="file"] {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            top: 0;
-            left: 0;
-            opacity: 0;
-            cursor: pointer;
-        }
-
-        .file-upload-text {
-            color: var(--hint-color);
-            font-size: 13px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .file-upload-btn {
-            background: rgba(36, 130, 119, 0.1);
-            color: var(--button-color);
-            padding: 4px 10px;
-            border-radius: 6px;
-            font-size: 12px;
-            font-weight: 600;
-            pointer-events: none;
-            flex-shrink: 0;
-            margin-left: 10px;
-        }
-
-        .divider-container {
-            display: flex;
-            align-items: center;
-            text-align: center;
-            margin: 16px 0;
-            color: var(--hint-color);
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-        }
-
-        .divider-container::before, .divider-container::after {
-            content: '';
-            flex: 1;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        .divider-container span {
-            padding: 0 10px;
-        }
-
-        .input-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 6px;
-        }
-
-        .paste-btn {
-            background: rgba(36, 130, 119, 0.1);
-            border: none;
-            color: var(--button-color);
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            padding: 4px 10px;
-            border-radius: 6px;
-        }
-
-        .main-btn {
-            background-color: var(--button-color);
-            color: var(--button-text-color);
-            border: none;
-            width: 100%;
-            padding: 14px;
-            border-radius: 10px;
-            font-size: 15px;
-            font-weight: 600;
-            cursor: pointer;
-            margin-top: 8px;
-        }
-
-        .summary-cards {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-
-        .summary-card {
-            background-color: var(--card-bg);
-            padding: 12px;
-            border-radius: 10px;
-            text-align: center;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-        }
-
-        .summary-card .number {
-            font-size: 22px;
-            font-weight: bold;
-            margin-bottom: 4px;
-        }
-
-        .summary-card .label {
-            font-size: 11px;
-            color: var(--hint-color);
-            text-transform: uppercase;
-            font-weight: 600;
-        }
-
-        .summary-card.high .number { color: var(--high-risk); }
-        .summary-card.med .number { color: var(--med-risk); }
-        .summary-card.low .number { color: var(--low-risk); }
-
-        .risk-card {
-            background-color: var(--card-bg);
-            border-radius: 10px;
-            padding: 14px;
-            margin-bottom: 14px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-            border-left: 5px solid transparent;
-        }
-
-        .risk-card.high { border-left-color: var(--high-risk); }
-        .risk-card.med { border-left-color: var(--med-risk); }
-        .risk-card.low { border-left-color: var(--low-risk); }
-
-        .risk-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-weight: 600;
-            font-size: 14px;
-            margin-bottom: 8px;
-        }
-
-        .risk-badge {
-            font-size: 10px;
-            padding: 3px 8px;
-            border-radius: 6px;
-            font-weight: 700;
-            color: #fff;
-            text-transform: uppercase;
-        }
-
-        .badge-high { background-color: var(--high-risk); }
-        .badge-med { background-color: var(--med-risk); }
-        .badge-low { background-color: var(--low-risk); }
-
-        .risk-body {
-            font-size: 13px;
-            line-height: 1.5;
-        }
-
-        .text-block {
-            margin-top: 8px;
-            padding: 8px 10px;
-            background-color: rgba(0,0,0,0.03);
-            border-radius: 8px;
-            font-size: 12px;
-        }
-
-        .text-block-title {
-            font-weight: 600;
-            color: var(--hint-color);
-            margin-bottom: 4px;
-            font-size: 10px;
-            text-transform: uppercase;
-        }
-
-        #custom-context-menu {
-            display: none;
-            position: absolute;
-            z-index: 10000;
-            background: var(--card-bg);
-            border: 1px solid var(--border-color);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            border-radius: 8px;
-            padding: 4px 0;
-            min-width: 140px;
-        }
-
-        #custom-context-menu div {
-            padding: 8px 16px;
-            font-size: 13px;
-            color: var(--text-color);
-            cursor: pointer;
-        }
-
-        #custom-context-menu div:hover {
-            background-color: rgba(36, 130, 119, 0.1);
-            color: var(--button-color);
-        }
-
-        #loading, #error {
-            text-align: center;
-            padding: 40px 20px;
-            color: var(--hint-color);
-            font-size: 15px;
-        }
-    </style>
-</head>
-<body>
-
-    <div id="loading" style="display: none;">Анализируем договор...</div>
-    <div id="error" style="display: none; color: var(--high-risk); text-align: center; padding: 20px;"></div>
-
-    <div id="custom-context-menu">
-        <div onclick="executeContextAction('paste')">📋 Вставить</div>
-        <div onclick="executeContextAction('copy')">📄 Копировать</div>
-        <div onclick="executeContextAction('selectAll')">🔍 Выделить всё</div>
-    </div>
-
-    <!-- 1. Главный экран -->
-    <div id="input-screen">
-        <div class="header">
-            <h1>LegalGuard</h1>
-            <p>Параметры и документ для экспресс-анализа</p>
-        </div>
-
-        <div class="form-group">
-            <label class="form-label">Юрисдикция</label>
-            <select id="jurisdiction-select" class="select-input">
-                <option value="RU">Российская Федерация (РФ)</option>
-                <option value="KZ">Республика Казахстан (РК)</option>
-                <option value="UAE">ОАЭ / Международное право</option>
-                <option value="OTHER">Общие правовые нормы (General)</option>
-            </select>
-        </div>
-
-        <div class="form-group">
-            <label class="form-label">Тип договора</label>
-            <select id="category-select" class="select-input">
-                <option value="freelance">Фриланс / Оказание услуг / ГПХ</option>
-                <option value="it_dev">Разработка ПО / IT-услуги</option>
-                <option value="nda">Соглашение о конфиденциальности (NDA)</option>
-                <option value="rent">Аренда недвижимости / Оборудования</option>
-                <option value="supply">Поставка / Купля-продажа</option>
-                <option value="general">Другой тип договора</option>
-            </select>
-        </div>
-
-        <!-- Загрузка файла -->
-        <div class="form-group">
-            <label class="form-label">Файл договора</label>
-            <div class="file-upload-box">
-                <input type="file" id="file-input" accept=".pdf,.docx,.doc,.odt,.txt,.rtf" onchange="handleFileSelect(this)">
-                <span class="file-upload-text" id="file-upload-label">PDF, DOCX, ODT, TXT, RTF</span>
-                <span class="file-upload-btn">Обзор</span>
-            </div>
-        </div>
-
-        <div class="divider-container">
-            <span>или</span>
-        </div>
-
-        <!-- Ввод текста -->
-        <div class="form-group">
-            <div class="input-header">
-                <label class="form-label" style="margin:0;">Текст договора</label>
-                <button type="button" class="paste-btn" onclick="pasteFromClipboard()">📋 Вставить</button>
-            </div>
-            <textarea id="doc-text-input" class="input-area" rows="6" placeholder="Вставьте текст или отдельные пункты..." spellcheck="false"></textarea>
-        </div>
-        
-        <button class="main-btn" onclick="startAnalysis()">🔍 Проверить договор</button>
-    </div>
-
-    <!-- 2. Экран результатов -->
-    <div id="report-screen" style="display: none;">
-        <div class="header" style="display: flex; justify-content: space-between; align-items: center;">
-            <div>
-                <h1 id="doc-title">Договор</h1>
-                <p id="doc-meta" style="font-size: 12px; color: var(--hint-color);"></p>
-            </div>
-            <button onclick="resetToInput()" style="background: none; border: 1px solid var(--border-color); padding: 6px 12px; border-radius: 8px; font-size: 12px; color: var(--text-color); cursor: pointer;">Новая проверка</button>
-        </div>
-
-        <div class="summary-cards">
-            <div class="summary-card high">
-                <div class="number" id="count-high">0</div>
-                <div class="label">Высокие</div>
-            </div>
-            <div class="summary-card med">
-                <div class="number" id="count-med">0</div>
-                <div class="label">Средние</div>
-            </div>
-            <div class="summary-card low">
-                <div class="number" id="count-low">0</div>
-                <div class="label">Низкие</div>
-            </div>
-        </div>
-
-        <div style="font-size: 15px; font-weight: 700; margin: 20px 0 12px 0;">Детальный разбор рисков</div>
-        <div id="risks-list"></div>
-    </div>
-
-    <script>
-        const tg = window.Telegram.WebApp;
-        tg.ready();
-        tg.expand();
-
-        let activeInput = null;
-        const contextMenu = document.getElementById('custom-context-menu');
-
-        // Перехват правого клика
-        document.addEventListener('contextmenu', function (e) {
-            const target = e.target;
-            if (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT') {
-                e.stopPropagation();
-                activeInput = target;
-                
-                contextMenu.style.top = e.pageY + 'px';
-                contextMenu.style.left = e.pageX + 'px';
-                contextMenu.style.display = 'block';
-                e.preventDefault();
-            } else {
-                contextMenu.style.display = 'none';
-            }
-        }, true);
-
-        document.addEventListener('click', function() {
-            contextMenu.style.display = 'none';
-        });
-
-        async function executeContextAction(action) {
-            contextMenu.style.display = 'none';
-            if (!activeInput) activeInput = document.getElementById('doc-text-input');
-            activeInput.focus();
-
-            if (action === 'paste') {
-                await pasteFromClipboard();
-            } else if (action === 'copy') {
-                document.execCommand('copy');
-            } else if (action === 'selectAll') {
-                activeInput.select();
-            }
-        }
-
-        function handleFileSelect(input) {
-            const label = document.getElementById('file-upload-label');
-            if (input.files && input.files[0]) {
-                label.innerText = `📄 ${input.files[0].name}`;
-                label.style.color = 'var(--button-color)';
-                label.style.fontWeight = '600';
-            } else {
-                label.innerText = 'PDF, DOCX, ODT, TXT, RTF';
-                label.style.color = 'var(--hint-color)';
-                label.style.fontWeight = 'normal';
-            }
-        }
-
-        async function pasteFromClipboard() {
-            const textarea = document.getElementById('doc-text-input');
-            textarea.focus();
-
-            try {
-                // Попытка прямого чтения буфера
-                const text = await navigator.clipboard.readText();
-                if (text && text.trim()) {
-                    const start = textarea.selectionStart || 0;
-                    const end = textarea.selectionEnd || 0;
-                    const currentVal = textarea.value;
-                    
-                    textarea.value = currentVal.substring(0, start) + text + currentVal.substring(end);
-                    textarea.selectionStart = textarea.selectionEnd = start + text.length;
-
-                    if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-                } else {
-                    alert("Буфер обмена пуст.");
-                }
-            } catch (err) {
-                // Фоллбэк: если браузер блокирует Clipboard API без разрешения
-                const userText = prompt("Вставьте текст из буфера обмена (Ctrl + V):");
-                if (userText) {
-                    textarea.value = userText;
-                }
-            }
-        }
-
-        async function startAnalysis() {
-            const text = document.getElementById('doc-text-input').value.trim();
-            const fileInput = document.getElementById('file-input');
-            const jurisdiction = document.getElementById('jurisdiction-select').value;
-            const category = document.getElementById('category-select').value;
-
-            if (!text && (!fileInput.files || fileInput.files.length === 0)) {
-                alert("Пожалуйста, загрузите файл договора или вставьте его текст.");
-                return;
-            }
-
-            document.getElementById('input-screen').style.display = 'none';
-            document.getElementById('loading').style.display = 'block';
-
-            const formData = new FormData();
-            const urlParams = new URLSearchParams(window.location.search);
-            const userId = urlParams.get('user_id') || (tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : '123456');
-
-            formData.append('user_id', userId);
-            formData.append('jurisdiction', jurisdiction);
-            formData.append('category', category);
-
-            if (fileInput.files && fileInput.files[0]) {
-                formData.append('file', fileInput.files[0]);
-            } else {
-                formData.append('text', text);
-            }
-
-            try {
-                const response = await fetch('/api/analyze', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                if (!response.ok) throw new Error("Ошибка обработки документа на сервере.");
-
-                const data = await response.json();
-                renderReport(data, jurisdiction, category);
-            } catch (err) {
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('error').innerText = err.message;
-                document.getElementById('error').style.display = 'block';
-            }
-        }
-
-        function resetToInput() {
-            document.getElementById('report-screen').style.display = 'none';
-            document.getElementById('error').style.display = 'none';
-            document.getElementById('input-screen').style.display = 'block';
-            document.getElementById('file-input').value = '';
-            handleFileSelect(document.getElementById('file-input'));
-            document.getElementById('doc-text-input').value = '';
-        }
-
-        function renderReport(data, jur, cat) {
-            document.getElementById('loading').style.display = 'none';
-            document.getElementById('report-screen').style.display = 'block';
-
-            const categoryLabels = {
-                'freelance': 'Фриланс / ГПХ',
-                'it_dev': 'IT / Разработка',
-                'nda': 'NDA',
-                'rent': 'Аренда',
-                'supply': 'Поставка',
-                'general': 'Общий договор'
-            };
-
-            document.getElementById('doc-title').innerText = data.doc_title || 'Анализ Договора';
-            document.getElementById('doc-meta').innerText = `Юрисдикция: ${jur} | Тип: ${categoryLabels[cat] || cat}`;
-
-            document.getElementById('count-high').innerText = data.summary ? (data.summary.high || 0) : 0;
-            document.getElementById('count-med').innerText = data.summary ? (data.summary.medium || 0) : 0;
-            document.getElementById('count-low').innerText = data.summary ? (data.summary.low || 0) : 0;
-
-            const listContainer = document.getElementById('risks-list');
-            listContainer.innerHTML = '';
-
-            if (!data.risks || data.risks.length === 0) {
-                listContainer.innerHTML = '<div style="text-align:center; color: var(--hint-color); padding: 20px;">Критических рисков не обнаружено.</div>';
-                return;
-            }
-
-            data.risks.forEach((risk) => {
-                const card = document.createElement('div');
-                card.className = `risk-card ${risk.level}`;
-
-                const levelText = risk.level === 'high' ? 'Высокий risk' : (risk.level === 'med' ? 'Средний risk' : 'Низкий risk');
-                const badgeClass = `badge-${risk.level}`;
-
-                card.innerHTML = `
-                    <div class="risk-header">
-                        <span>Пункт: ${escapeHtml(risk.clause)}</span>
-                        <span class="risk-badge ${badgeClass}">${levelText}</span>
-                    </div>
-                    <div class="risk-body">
-                        <div style="margin-bottom: 6px;">${escapeHtml(risk.comment)}</div>
-                        <div class="text-block">
-                            <div class="text-block-title">Исходная формулировка:</div>
-                            <i>"${escapeHtml(risk.original)}"</i>
-                        </div>
-                        <div class="text-block">
-                            <div class="text-block-title">Предлагаемая правка:</div>
-                            <b>"${escapeHtml(risk.proposed)}"</b>
-                        </div>
-                    </div>
-                `;
-                listContainer.appendChild(card);
-            });
-        }
-
-        function escapeHtml(str) {
-            return (str || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        }
-    </script>
-</body>
-</html>
+import os
+import io
+import json
+import logging
+import google.generativeai as genai
+from quart import Quart, request, jsonify, send_from_directory
+from pypdf import PdfReader
+import docx
+from odf import text
+from odf.opendocument import load
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("LegalGuard-Backend")
+
+app = Quart(__name__, static_folder=".")
+
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+
+def extract_text_from_file(file_bytes, filename):
+    """Извлечение текста из PDF, DOCX, ODT, TXT, RTF"""
+    filename_lower = filename.lower()
+    
+    try:
+        # PDF
+        if filename_lower.endswith('.pdf'):
+            reader = PdfReader(io.BytesIO(file_bytes))
+            text_content = "\n".join([page.extract_text() or "" for page in reader.pages])
+            return text_content
+            
+        # DOCX / DOC
+        elif filename_lower.endswith(('.docx', '.doc')):
+            doc = docx.Document(io.BytesIO(file_bytes))
+            text_content = "\n".join([p.text for p in doc.paragraphs if p.text.strip()])
+            return text_content
+
+        # ODT (OpenDocument Text)
+        elif filename_lower.endswith('.odt'):
+            odt_doc = load(io.BytesIO(file_bytes))
+            extracted = []
+            for p in odt_doc.getElementsByType(text.P):
+                p_text = "".join([node.data for node in p.childNodes if node.nodeType == 3])
+                if p_text.strip():
+                    extracted.append(p_text)
+            return "\n".join(extracted)
+
+        # TXT / RTF (С поддержкой UTF-8 и CP1251)
+        elif filename_lower.endswith(('.txt', '.rtf')):
+            try:
+                return file_bytes.decode('utf-8')
+            except UnicodeDecodeError:
+                return file_bytes.decode('cp1251', errors='ignore')
+            
+        else:
+            try:
+                return file_bytes.decode('utf-8')
+            except UnicodeDecodeError:
+                return file_bytes.decode('cp1251', errors='ignore')
+
+    except Exception as e:
+        logger.error(f"Ошибка при считывании файла {filename}: {e}")
+        return ""
+
+@app.route('/')
+async def serve_webapp():
+    return await send_from_directory('.', 'index.html')
+
+@app.route('/api/analyze', methods=['POST'])
+async def analyze_document():
+    try:
+        form = await request.form
+        files = await request.files
+
+        jurisdiction = form.get('jurisdiction', 'RU')
+        category = form.get('category', 'general')
+        document_text = form.get('text', '')
+
+        if 'file' in files:
+            uploaded_file = files['file']
+            file_bytes = uploaded_file.read()
+            extracted = extract_text_from_file(file_bytes, uploaded_file.filename)
+            if extracted and extracted.strip():
+                document_text = extracted
+
+        if not document_text or not document_text.strip():
+            return jsonify({
+                "doc_title": "Ошибка чтения",
+                "summary": {"high": 1, "medium": 0, "low": 0},
+                "risks": [{
+                    "clause": "Файл/Текст",
+                    "level": "high",
+                    "comment": "Не удалось извлечь текст из файла или поле ввода пустое. Убедитесь, что файл содержит текст и не защищен паролем.",
+                    "original": "",
+                    "proposed": ""
+                }]
+            }), 200
+
+        prompt = f"""
+Ты опытный корпоративный юрист. Проведи экспресс-анализ договора.
+Юрисдикция: {jurisdiction}
+Категория: {category}
+
+Текст договора:
+---
+{document_text[:15000]}
+---
+
+Ответь СТРОГО в формате JSON без какого-либо дополнительного текста или разметки ```json:
+{{
+  "doc_title": "Краткое наименование договора",
+  "summary": {{
+    "high": 1,
+    "medium": 2,
+    "low": 0
+  }},
+  "risks": [
+    {{
+      "clause": "Номер или название пункта",
+      "level": "high", 
+      "comment": "В чем заключается риск для стороны",
+      "original": "Исходный текст из договора",
+      "proposed": "Безопасная формулировка"
+    }}
+  ]
+}}
+Обрати внимание: "level" может принимать только значения "high", "med", "low".
+"""
+
+        model = genai.GenerativeModel('gemini-2.5-flash')
+        response = model.generate_content(prompt)
+
+        raw_response = response.text.strip()
+        if raw_response.startswith('```json'):
+            raw_response = raw_response[7:]
+        if raw_response.endswith('```'):
+            raw_response = raw_response[:-3]
+            
+        result_json = json.loads(raw_response.strip())
+        return jsonify(result_json)
+
+    except Exception as e:
+        logger.error(f"Ошибка при обработке запроса: {e}")
+        return jsonify({
+            "doc_title": "Ошибка анализа",
+            "summary": {"high": 1, "medium": 0, "low": 0},
+            "risks": [{
+                "clause": "Ошибка",
+                "level": "high",
+                "comment": "Произошла ошибка при обращении к ИИ. Попробуйте еще раз.",
+                "original": "",
+                "proposed": ""
+            }]
+        }), 200
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
