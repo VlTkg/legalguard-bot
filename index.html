@@ -45,6 +45,32 @@
             margin: 0;
         }
 
+        .main-btn {
+            background-color: var(--button-color);
+            color: var(--button-text-color);
+            border: none;
+            width: 100%;
+            padding: 12px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        .input-area {
+            width: 100%;
+            border: 1px solid rgba(142, 142, 147, 0.3);
+            border-radius: 10px;
+            padding: 10px;
+            font-size: 13px;
+            box-sizing: border-box;
+            background: var(--card-bg);
+            color: var(--text-color);
+            resize: none;
+            font-family: inherit;
+        }
+
         .summary-cards {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -204,13 +230,29 @@
 </head>
 <body>
 
-    <div id="loading">Загрузка юридического отчета...</div>
-    <div id="error" style="display: none;"></div>
+    <div id="loading" style="display: none;">Анализируем договор...</div>
+    <div id="error" style="display: none; color: var(--high-risk); text-align: center; padding: 20px;"></div>
 
-    <div id="content" style="display: none;">
+    <!-- 1. Экран ввода договора -->
+    <div id="input-screen">
         <div class="header">
-            <h1 id="doc-title">Договор</h1>
-            <p>Интерактивный экспресс-анализ рисков</p>
+            <h1>LegalGuard</h1>
+            <p>Вставьте текст договора для мгновенного анализа рисков</p>
+        </div>
+
+        <textarea id="doc-text-input" class="input-area" rows="10" placeholder="Вставьте сюда текст договора или его отдельные пункты..."></textarea>
+        
+        <button class="main-btn" onclick="startAnalysis()">🔍 Проверить договор</button>
+    </div>
+
+    <!-- 2. Экран результатов отчета -->
+    <div id="report-screen" style="display: none;">
+        <div class="header" style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h1 id="doc-title">Договор</h1>
+                <p>Интерактивный экспресс-анализ рисков</p>
+            </div>
+            <button onclick="resetToInput()" style="background: none; border: 1px solid var(--hint-color); padding: 6px 10px; border-radius: 8px; font-size: 12px; color: var(--text-color); cursor: pointer;">Новая проверка</button>
         </div>
 
         <div class="summary-cards">
@@ -260,37 +302,48 @@
         tg.expand();
 
         const urlParams = new URLSearchParams(window.location.search);
-        const userId = urlParams.get('user_id') || (tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : null);
+        const userId = urlParams.get('user_id') || (tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : '123456');
 
-        if (!userId) {
-            showError("Не удалось определить ID пользователя. Откройте отчет через бота LegalGuard.");
-        } else {
-            fetchReport(userId);
-        }
+        async function startAnalysis() {
+            const text = document.getElementById('doc-text-input').value.trim();
+            if (!text) {
+                alert("Пожалуйста, вставьте текст договора!");
+                return;
+            }
 
-        async function fetchReport(uid) {
+            document.getElementById('input-screen').style.display = 'none';
+            document.getElementById('loading').style.display = 'block';
+
             try {
-                const response = await fetch(`/api/report?user_id=${uid}`);
-                if (!response.ok) {
-                    throw new Error("Отчет не найден или устарел. Отправьте файл заново.");
-                }
+                const response = await fetch('/api/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        text: text
+                    })
+                });
+
+                if (!response.ok) throw new Error("Ошибка обработки документа.");
+
                 const data = await response.json();
                 renderReport(data);
             } catch (err) {
-                showError(err.message);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').innerText = err.message;
+                document.getElementById('error').style.display = 'block';
             }
         }
 
-        function showError(msg) {
-            document.getElementById('loading').style.display = 'none';
-            const errDiv = document.getElementById('error');
-            errDiv.innerText = msg;
-            errDiv.style.display = 'block';
+        function resetToInput() {
+            document.getElementById('report-screen').style.display = 'none';
+            document.getElementById('error').style.display = 'none';
+            document.getElementById('input-screen').style.display = 'block';
         }
 
         function renderReport(data) {
             document.getElementById('loading').style.display = 'none';
-            document.getElementById('content').style.display = 'block';
+            document.getElementById('report-screen').style.display = 'block';
 
             document.getElementById('doc-title').innerText = data.doc_title || 'Анализ Договора';
             document.getElementById('count-high').innerText = data.summary ? (data.summary.high || 0) : 0;
