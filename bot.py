@@ -151,14 +151,9 @@ async def analyze_document():
 Значения для "level": строго "high", "med", "low".
 """
 
-        # Используем актуальную модель Gemini
-        try:
-            model = genai.GenerativeModel('gemini-1.5-flash')
-            response = model.generate_content(prompt)
-        except Exception:
-            # Резервное переключение, если провайдер требует gemini-1.5-pro или gemini-2.0-flash
-            model = genai.GenerativeModel('gemini-1.5-pro')
-            response = model.generate_content(prompt)
+        # Используем актуальную модель gemini-3.8-flash
+        model = genai.GenerativeModel('gemini-3.8-flash')
+        response = model.generate_content(prompt)
 
         raw_response = response.text.strip()
         if raw_response.startswith('```json'):
