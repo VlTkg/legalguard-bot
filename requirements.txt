@@ -5,3 +5,4 @@ hypercorn==0.16.0
 google-generativeai
 pypdf
 python-docx
+odfpy
