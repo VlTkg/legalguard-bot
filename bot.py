@@ -19,47 +19,49 @@ if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 
 def extract_text_from_file(file_bytes, filename):
-    """Извлечение текста из PDF, DOCX, ODT, TXT, RTF"""
+    """Извлечение текста из PDF, DOCX, ODT, TXT, RTF с подробной обработкой ошибок"""
     filename_lower = filename.lower()
     
     try:
         # PDF
         if filename_lower.endswith('.pdf'):
             reader = PdfReader(io.BytesIO(file_bytes))
-            text_content = "\n".join([page.extract_text() or "" for page in reader.pages])
-            return text_content
+            pages_text = [page.extract_text() for page in reader.pages if page.extract_text()]
+            return "\n".join(pages_text)
             
         # DOCX / DOC
         elif filename_lower.endswith(('.docx', '.doc')):
             doc = docx.Document(io.BytesIO(file_bytes))
-            text_content = "\n".join([p.text for p in doc.paragraphs if p.text.strip()])
-            return text_content
+            paragraphs = [p.text for p in doc.paragraphs if p.text and p.text.strip()]
+            return "\n".join(paragraphs)
 
         # ODT (OpenDocument Text)
         elif filename_lower.endswith('.odt'):
             odt_doc = load(io.BytesIO(file_bytes))
-            paragraphs = odt_doc.getElementsByType(telement.Element)
             extracted = []
             for p in odt_doc.getElementsByType(text.P):
-                # Извлекаем текст из узлов параграфа
                 p_text = "".join([node.data for node in p.childNodes if node.nodeType == 3])
                 if p_text.strip():
                     extracted.append(p_text)
             return "\n".join(extracted)
 
-        # TXT / RTF (С поддержкой UTF-8 и CP1251)
+        # TXT / RTF (Кодировки UTF-8, CP1251, Latin1)
         elif filename_lower.endswith(('.txt', '.rtf')):
-            try:
-                return file_bytes.decode('utf-8')
-            except UnicodeDecodeError:
-                return file_bytes.decode('cp1251', errors='ignore')
+            for enc in ['utf-8', 'cp1251', 'windows-1251', 'latin1']:
+                try:
+                    return file_bytes.decode(enc)
+                except (UnicodeDecodeError, TypeError):
+                    continue
+            return file_bytes.decode('utf-8', errors='ignore')
             
         else:
-            # Резервный попытка прочитать как текст
-            try:
-                return file_bytes.decode('utf-8')
-            except UnicodeDecodeError:
-                return file_bytes.decode('cp1251', errors='ignore')
+            # Резервный вариант для прочих текстовых файлов
+            for enc in ['utf-8', 'cp1251']:
+                try:
+                    return file_bytes.decode(enc)
+                except Exception:
+                    continue
+            return file_bytes.decode('utf-8', errors='ignore')
 
     except Exception as e:
         logger.error(f"Ошибка при считывании файла {filename}: {e}")
@@ -79,21 +81,27 @@ async def analyze_document():
         category = form.get('category', 'general')
         document_text = form.get('text', '')
 
+        # Обработка файла
         if 'file' in files:
             uploaded_file = files['file']
             file_bytes = uploaded_file.read()
-            extracted = extract_text_from_file(file_bytes, uploaded_file.filename)
-            if extracted and extracted.strip():
-                document_text = extracted
+            # В Quart read() возвращает байты или корутину
+            if hasattr(file_bytes, '__await__'):
+                file_bytes = await file_bytes
+
+            if file_bytes:
+                extracted = extract_text_from_file(file_bytes, uploaded_file.filename)
+                if extracted and extracted.strip():
+                    document_text = extracted
 
         if not document_text or not document_text.strip():
             return jsonify({
-                "doc_title": "Ошибка чтения",
+                "doc_title": "Ошибка извлечения текста",
                 "summary": {"high": 1, "medium": 0, "low": 0},
                 "risks": [{
-                    "clause": "Файл/Текст",
+                    "clause": "Файл / Текст",
                     "level": "high",
-                    "comment": "Не удалось извлечь текст из файла или поле ввода пустое. Убедитесь, что файл не защищен паролем.",
+                    "comment": "Не удалось прочитать текст из загруженного файла. Проверьте, что файл не пустой и не защищен от чтения.",
                     "original": "",
                     "proposed": ""
                 }]
@@ -109,7 +117,7 @@ async def analyze_document():
 {document_text[:15000]}
 ---
 
-Ответь СТРОГО в формате JSON без какого-либо дополнительного текста или разметки ```json:
+Ответь СТРОГО в формате JSON без какого-либо дополнительного текста или маркдаун-разметки:
 {{
   "doc_title": "Краткое наименование договора",
   "summary": {{
@@ -127,7 +135,7 @@ async def analyze_document():
     }}
   ]
 }}
-Обрати внимание: "level" может принимать только значения "high", "med", "low".
+Значения для "level": только "high", "med", "low".
 """
 
         model = genai.GenerativeModel('gemini-2.5-flash')
@@ -136,6 +144,8 @@ async def analyze_document():
         raw_response = response.text.strip()
         if raw_response.startswith('```json'):
             raw_response = raw_response[7:]
+        if raw_response.startswith('```'):
+            raw_response = raw_response[3:]
         if raw_response.endswith('```'):
             raw_response = raw_response[:-3]
             
@@ -148,9 +158,9 @@ async def analyze_document():
             "doc_title": "Ошибка анализа",
             "summary": {"high": 1, "medium": 0, "low": 0},
             "risks": [{
-                "clause": "Ошибка",
+                "clause": "Сбой сервера",
                 "level": "high",
-                "comment": "Произошла ошибка при обращении к ИИ. Попробуйте еще раз.",
+                "comment": f"Произошла ошибка при обработке: {str(e)}",
                 "original": "",
                 "proposed": ""
             }]
