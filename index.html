@@ -32,6 +32,12 @@
             padding: 16px;
         }
 
+        /* Разрешаем выделение и контекстное меню */
+        input, textarea {
+            -webkit-user-select: text !important;
+            user-select: text !important;
+        }
+
         .header {
             margin-bottom: 20px;
         }
@@ -62,10 +68,10 @@
             display: block;
         }
 
-        /* Общие стили для всех окон ввода */
+        /* Общие стили полей ввода (сплошные рамки) */
         .select-input, .input-area, .file-upload-box {
             width: 100%;
-            border: 1px solid var(--border-color);
+            border: 1px solid var(--border-color) !important;
             border-radius: 10px;
             padding: 12px;
             font-size: 13px;
@@ -78,7 +84,7 @@
         }
 
         .select-input:focus, .input-area:focus {
-            border-color: var(--button-color);
+            border-color: var(--button-color) !important;
         }
 
         .select-input {
@@ -89,7 +95,6 @@
             background-size: 16px;
         }
 
-        /* Окно загрузки файла — стиль как у всех полей */
         .file-upload-box {
             display: flex;
             align-items: center;
@@ -268,6 +273,30 @@
             text-transform: uppercase;
         }
 
+        #custom-context-menu {
+            display: none;
+            position: absolute;
+            z-index: 10000;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            border-radius: 8px;
+            padding: 4px 0;
+            min-width: 140px;
+        }
+
+        #custom-context-menu div {
+            padding: 8px 16px;
+            font-size: 13px;
+            color: var(--text-color);
+            cursor: pointer;
+        }
+
+        #custom-context-menu div:hover {
+            background-color: rgba(36, 130, 119, 0.1);
+            color: var(--button-color);
+        }
+
         #loading, #error {
             text-align: center;
             padding: 40px 20px;
@@ -280,6 +309,12 @@
 
     <div id="loading" style="display: none;">Анализируем договор...</div>
     <div id="error" style="display: none; color: var(--high-risk); text-align: center; padding: 20px;"></div>
+
+    <div id="custom-context-menu">
+        <div onclick="executeContextAction('paste')">📋 Вставить</div>
+        <div onclick="executeContextAction('copy')">📄 Копировать</div>
+        <div onclick="executeContextAction('selectAll')">🔍 Выделить всё</div>
+    </div>
 
     <!-- 1. Главный экран -->
     <div id="input-screen">
@@ -310,11 +345,10 @@
             </select>
         </div>
 
-        <!-- Окно загрузки файла в точном дизайне остальных окон -->
+        <!-- Загрузка файла (сплошная рамка, широкий выбор форматов) -->
         <div class="form-group">
             <label class="form-label">Файл договора</label>
             <div class="file-upload-box">
-                <!-- Расширенный список форматов (PDF, Word, Text, RTF, Pages, Фото/Сканы) -->
                 <input type="file" id="file-input" accept=".pdf,.docx,.doc,.txt,.rtf,.odt,.pages,.jpg,.jpeg,.png" onchange="handleFileSelect(this)">
                 <span class="file-upload-text" id="file-upload-label">PDF, DOCX, TXT, RTF, JPG...</span>
                 <span class="file-upload-btn">Обзор</span>
@@ -325,14 +359,13 @@
             <span>или</span>
         </div>
 
-        <!-- Ввод и вставка текста -->
+        <!-- Ввод текста -->
         <div class="form-group">
             <div class="input-header">
                 <label class="form-label" style="margin:0;">Текст договора</label>
-                <button type="button" class="paste-btn" onclick="pasteFromClipboard()">📋 Вставить из буфера</button>
+                <button type="button" class="paste-btn" onclick="pasteFromClipboard()">📋 Вставить</button>
             </div>
-            <!-- Поле с явным разрешением контекстного меню по правому клику -->
-            <textarea id="doc-text-input" class="input-area" rows="6" placeholder="Вставьте текст или отдельные пункты..." spellcheck="false" oncontextmenu="event.stopPropagation()"></textarea>
+            <textarea id="doc-text-input" class="input-area" rows="6" placeholder="Вставьте текст или отдельные пункты..." spellcheck="false"></textarea>
         </div>
         
         <button class="main-btn" onclick="startAnalysis()">🔍 Проверить договор</button>
@@ -372,16 +405,48 @@
         tg.ready();
         tg.expand();
 
-        // Разрешаем контекстное меню (правый клик) на уровне всего приложения для текстовых полей
-        document.addEventListener('contextmenu', function(e) {
-            if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') {
+        let activeInput = null;
+        const contextMenu = document.getElementById('custom-context-menu');
+
+        // Перехват правого клика мышью
+        document.addEventListener('contextmenu', function (e) {
+            const target = e.target;
+            if (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT') {
                 e.stopPropagation();
-                return true;
+                activeInput = target;
+                
+                // Вызываем кастомное контекстное меню, если Telegram глушит системное
+                contextMenu.style.top = e.pageY + 'px';
+                contextMenu.style.left = e.pageX + 'px';
+                contextMenu.style.display = 'block';
+                e.preventDefault();
+            } else {
+                contextMenu.style.display = 'none';
             }
         }, true);
 
-        const urlParams = new URLSearchParams(window.location.search);
-        const userId = urlParams.get('user_id') || (tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : '123456');
+        document.addEventListener('click', function() {
+            contextMenu.style.display = 'none';
+        });
+
+        async function executeContextAction(action) {
+            contextMenu.style.display = 'none';
+            if (!activeInput) activeInput = document.getElementById('doc-text-input');
+            activeInput.focus();
+
+            if (action === 'paste') {
+                try {
+                    const text = await navigator.clipboard.readText();
+                    if (text) activeInput.value += text;
+                } catch(err) {
+                    alert("Используйте кнопку '📋 Вставить' вверху поля.");
+                }
+            } else if (action === 'copy') {
+                document.execCommand('copy');
+            } else if (action === 'selectAll') {
+                activeInput.select();
+            }
+        }
 
         function handleFileSelect(input) {
             const label = document.getElementById('file-upload-label');
@@ -409,7 +474,7 @@
                     alert("Буфер обмена пуст.");
                 }
             } catch (err) {
-                alert("Нажмите правую кнопку мыши в поле и выберите «Вставить» или нажмите Ctrl + V.");
+                alert("Нажмите Ctrl + V для вставки текста.");
             }
         }
 
@@ -428,6 +493,9 @@
             document.getElementById('loading').style.display = 'block';
 
             const formData = new FormData();
+            const urlParams = new URLSearchParams(window.location.search);
+            const userId = urlParams.get('user_id') || (tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : '123456');
+
             formData.append('user_id', userId);
             formData.append('jurisdiction', jurisdiction);
             formData.append('category', category);
@@ -444,7 +512,7 @@
                     body: formData
                 });
 
-                if (!response.ok) throw new Error("Ошибка обработки документа.");
+                if (!response.ok) throw new Error("Ошибка обработки документа на сервере.");
 
                 const data = await response.json();
                 renderReport(data, jurisdiction, category);
