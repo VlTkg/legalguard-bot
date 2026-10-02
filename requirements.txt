@@ -1,4 +1,4 @@
-pyTelegramBotAPI
-Flask
-requests
+quart==0.19.4
 google-generativeai
+pypdf
+python-docx
