@@ -45,6 +45,39 @@
             margin: 0;
         }
 
+        .form-group {
+            margin-bottom: 14px;
+        }
+
+        .form-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--hint-color);
+            text-transform: uppercase;
+            margin-bottom: 6px;
+            display: block;
+        }
+
+        .select-input, .input-area {
+            width: 100%;
+            border: 1px solid rgba(142, 142, 147, 0.3);
+            border-radius: 10px;
+            padding: 10px;
+            font-size: 13px;
+            box-sizing: border-box;
+            background: var(--card-bg);
+            color: var(--text-color);
+            font-family: inherit;
+        }
+
+        .select-input {
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            background-size: 16px;
+        }
+
         .main-btn {
             background-color: var(--button-color);
             color: var(--button-text-color);
@@ -56,19 +89,6 @@
             font-weight: 600;
             cursor: pointer;
             margin-top: 10px;
-        }
-
-        .input-area {
-            width: 100%;
-            border: 1px solid rgba(142, 142, 147, 0.3);
-            border-radius: 10px;
-            padding: 10px;
-            font-size: 13px;
-            box-sizing: border-box;
-            background: var(--card-bg);
-            color: var(--text-color);
-            resize: none;
-            font-family: inherit;
         }
 
         .summary-cards {
@@ -230,17 +250,42 @@
 </head>
 <body>
 
-    <div id="loading" style="display: none;">Анализируем договор...</div>
+    <div id="loading" style="display: none;">Анализируем договор с учетом выбранных параметров...</div>
     <div id="error" style="display: none; color: var(--high-risk); text-align: center; padding: 20px;"></div>
 
-    <!-- 1. Экран ввода договора -->
+    <!-- 1. Главный экран ввода параметров и договора -->
     <div id="input-screen">
         <div class="header">
             <h1>LegalGuard</h1>
-            <p>Вставьте текст договора для мгновенного анализа рисков</p>
+            <p>Параметры и текст договора для проверки рисков</p>
         </div>
 
-        <textarea id="doc-text-input" class="input-area" rows="10" placeholder="Вставьте сюда текст договора или его отдельные пункты..."></textarea>
+        <div class="form-group">
+            <label class="form-label" for="jurisdiction-select">Юрисдикция (законодательство)</label>
+            <select id="jurisdiction-select" class="select-input">
+                <option value="RU">Российская Федерация (РФ)</option>
+                <option value="KZ">Республика Казахстан (РК)</option>
+                <option value="UAE">ОАЭ / Международное право</option>
+                <option value="OTHER">Общие правовые нормы (General)</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="category-select">Тип договора / Контекст</label>
+            <select id="category-select" class="select-input">
+                <option value="freelance">Фриланс / Оказание услуг / ГПХ</option>
+                <option value="it_dev">Разработка ПО / IT-услуги / Лицензии</option>
+                <option value="nda">Соглашение о конфиденциальности (NDA)</option>
+                <option value="rent">Аренда недвижимости / Оборудования</option>
+                <option value="supply">Поставка / Купля-продажа</option>
+                <option value="general">Другой тип договора</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="doc-text-input">Текст договора или ключевые пункты</label>
+            <textarea id="doc-text-input" class="input-area" rows="8" placeholder="Вставьте сюда текст договора или его отдельные статьи..."></textarea>
+        </div>
         
         <button class="main-btn" onclick="startAnalysis()">🔍 Проверить договор</button>
     </div>
@@ -250,7 +295,7 @@
         <div class="header" style="display: flex; justify-content: space-between; align-items: center;">
             <div>
                 <h1 id="doc-title">Договор</h1>
-                <p>Интерактивный экспресс-анализ рисков</p>
+                <p id="doc-meta" style="font-size: 12px; color: var(--hint-color);"></p>
             </div>
             <button onclick="resetToInput()" style="background: none; border: 1px solid var(--hint-color); padding: 6px 10px; border-radius: 8px; font-size: 12px; color: var(--text-color); cursor: pointer;">Новая проверка</button>
         </div>
@@ -306,6 +351,9 @@
 
         async function startAnalysis() {
             const text = document.getElementById('doc-text-input').value.trim();
+            const jurisdiction = document.getElementById('jurisdiction-select').value;
+            const category = document.getElementById('category-select').value;
+
             if (!text) {
                 alert("Пожалуйста, вставьте текст договора!");
                 return;
@@ -320,6 +368,8 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         user_id: userId,
+                        jurisdiction: jurisdiction,
+                        category: category,
                         text: text
                     })
                 });
@@ -327,7 +377,7 @@
                 if (!response.ok) throw new Error("Ошибка обработки документа.");
 
                 const data = await response.json();
-                renderReport(data);
+                renderReport(data, jurisdiction, category);
             } catch (err) {
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('error').innerText = err.message;
@@ -341,11 +391,22 @@
             document.getElementById('input-screen').style.display = 'block';
         }
 
-        function renderReport(data) {
+        function renderReport(data, jur, cat) {
             document.getElementById('loading').style.display = 'none';
             document.getElementById('report-screen').style.display = 'block';
 
+            const categoryLabels = {
+                'freelance': 'Фриланс / ГПХ',
+                'it_dev': 'IT / Разработка ПО',
+                'nda': 'NDA',
+                'rent': 'Аренда',
+                'supply': 'Поставка',
+                'general': 'Общий договор'
+            };
+
             document.getElementById('doc-title').innerText = data.doc_title || 'Анализ Договора';
+            document.getElementById('doc-meta').innerText = `Юрисдикция: ${jur} | Тип: ${categoryLabels[cat] || cat}`;
+
             document.getElementById('count-high').innerText = data.summary ? (data.summary.high || 0) : 0;
             document.getElementById('count-med').innerText = data.summary ? (data.summary.medium || 0) : 0;
             document.getElementById('count-low').innerText = data.summary ? (data.summary.low || 0) : 0;
