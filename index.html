@@ -25,8 +25,6 @@
             margin: 0;
             padding: 16px;
             box-sizing: border-box;
-            -webkit-user-select: none;
-            user-select: none;
         }
 
         .header {
@@ -46,7 +44,7 @@
         }
 
         .form-group {
-            margin-bottom: 14px;
+            margin-bottom: 16px;
         }
 
         .form-label {
@@ -68,6 +66,8 @@
             background: var(--card-bg);
             color: var(--text-color);
             font-family: inherit;
+            -webkit-user-select: text;
+            user-select: text;
         }
 
         .select-input {
@@ -76,6 +76,60 @@
             background-repeat: no-repeat;
             background-position: right 10px center;
             background-size: 16px;
+        }
+
+        .input-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .paste-btn {
+            background: none;
+            border: none;
+            color: var(--button-color);
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        .file-upload-box {
+            border: 2px dashed rgba(142, 142, 147, 0.4);
+            border-radius: 10px;
+            padding: 16px;
+            text-align: center;
+            background: var(--card-bg);
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        .file-upload-box input[type="file"] {
+            display: none;
+        }
+
+        .file-upload-label {
+            font-size: 13px;
+            color: var(--hint-color);
+            cursor: pointer;
+        }
+
+        .file-name-display {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--button-color);
+            margin-top: 6px;
+            word-break: break-all;
+        }
+
+        .divider {
+            text-align: center;
+            color: var(--hint-color);
+            font-size: 12px;
+            margin: 12px 0;
+            font-weight: 600;
+            text-transform: uppercase;
         }
 
         .main-btn {
@@ -250,14 +304,14 @@
 </head>
 <body>
 
-    <div id="loading" style="display: none;">Анализируем договор с учетом выбранных параметров...</div>
+    <div id="loading" style="display: none;">Анализируем договор...</div>
     <div id="error" style="display: none; color: var(--high-risk); text-align: center; padding: 20px;"></div>
 
-    <!-- 1. Главный экран ввода параметров и договора -->
+    <!-- 1. Главный экран -->
     <div id="input-screen">
         <div class="header">
             <h1>LegalGuard</h1>
-            <p>Параметры и текст договора для проверки рисков</p>
+            <p>Параметры и документ для экспресс-анализа</p>
         </div>
 
         <div class="form-group">
@@ -282,9 +336,25 @@
             </select>
         </div>
 
+        <!-- Загрузка файла -->
         <div class="form-group">
-            <label class="form-label" for="doc-text-input">Текст договора или ключевые пункты</label>
-            <textarea id="doc-text-input" class="input-area" rows="8" placeholder="Вставьте сюда текст договора или его отдельные статьи..."></textarea>
+            <label class="form-label">Загрузить файл договора (PDF, DOCX, TXT)</label>
+            <div class="file-upload-box" onclick="document.getElementById('file-input').click()">
+                <div class="file-upload-label">📎 Нажмите, чтобы выбрать файл с устройства</div>
+                <input type="file" id="file-input" accept=".pdf,.docx,.doc,.txt" onchange="handleFileSelect(this)">
+                <div id="file-name" class="file-name-display"></div>
+            </div>
+        </div>
+
+        <div class="divider">Или вставьте текст</div>
+
+        <!-- Ввод текста -->
+        <div class="form-group">
+            <div class="input-header">
+                <label class="form-label" for="doc-text-input" style="margin: 0;">Текст договора</label>
+                <button type="button" class="paste-btn" onclick="pasteFromClipboard()">📋 Вставить из буфера</button>
+            </div>
+            <textarea id="doc-text-input" class="input-area" rows="6" placeholder="Вставьте сюда текст договора..."></textarea>
         </div>
         
         <button class="main-btn" onclick="startAnalysis()">🔍 Проверить договор</button>
@@ -349,29 +419,58 @@
         const urlParams = new URLSearchParams(window.location.search);
         const userId = urlParams.get('user_id') || (tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : '123456');
 
+        function handleFileSelect(input) {
+            const fileNameDiv = document.getElementById('file-name');
+            if (input.files && input.files[0]) {
+                fileNameDiv.innerText = `📄 Выбран файл: ${input.files[0].name}`;
+            } else {
+                fileNameDiv.innerText = '';
+            }
+        }
+
+        async function pasteFromClipboard() {
+            try {
+                const text = await navigator.clipboard.readText();
+                if (text) {
+                    document.getElementById('doc-text-input').value = text;
+                    if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+                } else {
+                    alert("Буфер обмена пуст.");
+                }
+            } catch (err) {
+                alert("Пожалуйста, зажмите пальцем поле ввода и выберите «Вставить» из всплывающего меню.");
+            }
+        }
+
         async function startAnalysis() {
             const text = document.getElementById('doc-text-input').value.trim();
+            const fileInput = document.getElementById('file-input');
             const jurisdiction = document.getElementById('jurisdiction-select').value;
             const category = document.getElementById('category-select').value;
 
-            if (!text) {
-                alert("Пожалуйста, вставьте текст договора!");
+            if (!text && (!fileInput.files || fileInput.files.length === 0)) {
+                alert("Пожалуйста, загрузите файл договора или вставьте его текст.");
                 return;
             }
 
             document.getElementById('input-screen').style.display = 'none';
             document.getElementById('loading').style.display = 'block';
 
+            const formData = new FormData();
+            formData.append('user_id', userId);
+            formData.append('jurisdiction', jurisdiction);
+            formData.append('category', category);
+
+            if (fileInput.files && fileInput.files[0]) {
+                formData.append('file', fileInput.files[0]);
+            } else {
+                formData.append('text', text);
+            }
+
             try {
                 const response = await fetch('/api/analyze', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        user_id: userId,
-                        jurisdiction: jurisdiction,
-                        category: category,
-                        text: text
-                    })
+                    body: formData
                 });
 
                 if (!response.ok) throw new Error("Ошибка обработки документа.");
@@ -389,6 +488,9 @@
             document.getElementById('report-screen').style.display = 'none';
             document.getElementById('error').style.display = 'none';
             document.getElementById('input-screen').style.display = 'block';
+            document.getElementById('file-input').value = '';
+            document.getElementById('file-name').innerText = '';
+            document.getElementById('doc-text-input').value = '';
         }
 
         function renderReport(data, jur, cat) {
