@@ -13,7 +13,7 @@
             --hint-color: var(--tg-theme-hint-color, #8e8e93);
             --button-color: var(--tg-theme-button-color, #248277);
             --button-text-color: var(--tg-theme-button-text-color, #ffffff);
-            --border-color: rgba(142, 142, 147, 0.2);
+            --border-color: rgba(142, 142, 147, 0.3);
             --high-risk: #ff3b30;
             --med-risk: #ff9500;
             --low-risk: #34c759;
@@ -62,19 +62,19 @@
             display: block;
         }
 
-        .select-input, .input-area {
+        /* Общие стили для всех окон ввода */
+        .select-input, .input-area, .file-upload-box {
             width: 100%;
             border: 1px solid var(--border-color);
-            border-radius: 12px;
+            border-radius: 10px;
             padding: 12px;
-            font-size: 14px;
+            font-size: 13px;
             background: var(--card-bg);
             color: var(--text-color);
             font-family: inherit;
             outline: none;
             transition: border-color 0.2s;
-            -webkit-user-select: text !important;
-            user-select: text !important;
+            box-sizing: border-box;
         }
 
         .select-input:focus, .input-area:focus {
@@ -89,24 +89,16 @@
             background-size: 16px;
         }
 
-        /* Эстетичный контейнер загрузки файла */
-        .drop-zone {
-            border: 2px dashed var(--border-color);
-            border-radius: 12px;
-            padding: 20px 16px;
-            text-align: center;
-            background: var(--card-bg);
+        /* Окно загрузки файла — стиль как у всех полей */
+        .file-upload-box {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
             cursor: pointer;
-            transition: all 0.2s ease;
             position: relative;
         }
 
-        .drop-zone:hover, .drop-zone.dragover {
-            border-color: var(--button-color);
-            background: rgba(36, 130, 119, 0.04);
-        }
-
-        .drop-zone input[type="file"] {
+        .file-upload-box input[type="file"] {
             position: absolute;
             width: 100%;
             height: 100%;
@@ -116,35 +108,24 @@
             cursor: pointer;
         }
 
-        .drop-icon {
-            font-size: 28px;
-            margin-bottom: 6px;
-            display: block;
-        }
-
-        .drop-text-main {
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--text-color);
-        }
-
-        .drop-text-sub {
-            font-size: 11px;
+        .file-upload-text {
             color: var(--hint-color);
-            margin-top: 4px;
+            font-size: 13px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
-        .file-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
+        .file-upload-btn {
             background: rgba(36, 130, 119, 0.1);
             color: var(--button-color);
-            padding: 6px 12px;
-            border-radius: 20px;
+            padding: 4px 10px;
+            border-radius: 6px;
             font-size: 12px;
             font-weight: 600;
-            margin-top: 8px;
+            pointer-events: none;
+            flex-shrink: 0;
+            margin-left: 10px;
         }
 
         .divider-container {
@@ -184,11 +165,6 @@
             cursor: pointer;
             padding: 4px 10px;
             border-radius: 6px;
-            transition: background 0.2s;
-        }
-
-        .paste-btn:active {
-            background: rgba(36, 130, 119, 0.2);
         }
 
         .main-btn {
@@ -197,12 +173,11 @@
             border: none;
             width: 100%;
             padding: 14px;
-            border-radius: 12px;
+            border-radius: 10px;
             font-size: 15px;
             font-weight: 600;
             cursor: pointer;
             margin-top: 8px;
-            box-shadow: 0 4px 12px rgba(36, 130, 119, 0.2);
         }
 
         .summary-cards {
@@ -215,7 +190,7 @@
         .summary-card {
             background-color: var(--card-bg);
             padding: 12px;
-            border-radius: 12px;
+            border-radius: 10px;
             text-align: center;
             box-shadow: 0 2px 8px rgba(0,0,0,0.04);
         }
@@ -239,7 +214,7 @@
 
         .risk-card {
             background-color: var(--card-bg);
-            border-radius: 12px;
+            border-radius: 10px;
             padding: 14px;
             margin-bottom: 14px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.04);
@@ -293,19 +268,6 @@
             text-transform: uppercase;
         }
 
-        .copy-btn {
-            background-color: var(--button-color);
-            color: var(--button-text-color);
-            border: none;
-            width: 100%;
-            padding: 10px;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 600;
-            margin-top: 10px;
-            cursor: pointer;
-        }
-
         #loading, #error {
             text-align: center;
             padding: 40px 20px;
@@ -348,15 +310,14 @@
             </select>
         </div>
 
-        <!-- Красивый стилизованный блок загрузки файла -->
+        <!-- Окно загрузки файла в точном дизайне остальных окон -->
         <div class="form-group">
             <label class="form-label">Файл договора</label>
-            <div class="drop-zone" id="drop-zone">
-                <input type="file" id="file-input" accept=".pdf,.docx,.doc,.txt" onchange="handleFileSelect(this)">
-                <span class="drop-icon">📂</span>
-                <div class="drop-text-main">Выберите файл или перетащите сюда</div>
-                <div class="drop-text-sub">Поддерживаются PDF, DOCX, TXT</div>
-                <div id="file-badge-container"></div>
+            <div class="file-upload-box">
+                <!-- Расширенный список форматов (PDF, Word, Text, RTF, Pages, Фото/Сканы) -->
+                <input type="file" id="file-input" accept=".pdf,.docx,.doc,.txt,.rtf,.odt,.pages,.jpg,.jpeg,.png" onchange="handleFileSelect(this)">
+                <span class="file-upload-text" id="file-upload-label">PDF, DOCX, TXT, RTF, JPG...</span>
+                <span class="file-upload-btn">Обзор</span>
             </div>
         </div>
 
@@ -370,7 +331,8 @@
                 <label class="form-label" style="margin:0;">Текст договора</label>
                 <button type="button" class="paste-btn" onclick="pasteFromClipboard()">📋 Вставить из буфера</button>
             </div>
-            <textarea id="doc-text-input" class="input-area" rows="6" placeholder="Вставьте текст или отдельные пункты (Ctrl+V или правая кнопка мыши)..." spellcheck="false"></textarea>
+            <!-- Поле с явным разрешением контекстного меню по правому клику -->
+            <textarea id="doc-text-input" class="input-area" rows="6" placeholder="Вставьте текст или отдельные пункты..." spellcheck="false" oncontextmenu="event.stopPropagation()"></textarea>
         </div>
         
         <button class="main-btn" onclick="startAnalysis()">🔍 Проверить договор</button>
@@ -410,27 +372,35 @@
         tg.ready();
         tg.expand();
 
+        // Разрешаем контекстное меню (правый клик) на уровне всего приложения для текстовых полей
+        document.addEventListener('contextmenu', function(e) {
+            if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') {
+                e.stopPropagation();
+                return true;
+            }
+        }, true);
+
         const urlParams = new URLSearchParams(window.location.search);
         const userId = urlParams.get('user_id') || (tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : '123456');
 
-        // Обработка выбора файла
         function handleFileSelect(input) {
-            const container = document.getElementById('file-badge-container');
+            const label = document.getElementById('file-upload-label');
             if (input.files && input.files[0]) {
-                const name = input.files[0].name;
-                container.innerHTML = `<div class="file-badge">📄 ${escapeHtml(name)}</div>`;
+                label.innerText = `📄 ${input.files[0].name}`;
+                label.style.color = 'var(--button-color)';
+                label.style.fontWeight = '600';
             } else {
-                container.innerHTML = '';
+                label.innerText = 'PDF, DOCX, TXT, RTF, JPG...';
+                label.style.color = 'var(--hint-color)';
+                label.style.fontWeight = 'normal';
             }
         }
 
-        // Продвинутая функция вставки из буфера обмена (для ПК и Смартфонов)
         async function pasteFromClipboard() {
             const textarea = document.getElementById('doc-text-input');
             textarea.focus();
 
             try {
-                // Попытка системного Clipboard API
                 const text = await navigator.clipboard.readText();
                 if (text) {
                     textarea.value = text;
@@ -439,41 +409,9 @@
                     alert("Буфер обмена пуст.");
                 }
             } catch (err) {
-                // Фоллбек для Telegram Desktop
-                try {
-                    const successful = document.execCommand('paste');
-                    if (!successful && !textarea.value) {
-                        alert("Нажмите Ctrl + V (или Cmd + V на Mac) для вставки текста в поле.");
-                    }
-                } catch (e) {
-                    alert("Нажмите Ctrl + V (или Cmd + V на Mac) для вставки текста.");
-                }
+                alert("Нажмите правую кнопку мыши в поле и выберите «Вставить» или нажмите Ctrl + V.");
             }
         }
-
-        // Поддержка Drag & Drop для компьютера
-        const dropZone = document.getElementById('drop-zone');
-        ['dragenter', 'dragover'].forEach(eventName => {
-            dropZone.addEventListener(eventName, (e) => {
-                e.preventDefault();
-                dropZone.classList.add('dragover');
-            }, false);
-        });
-
-        ['dragleave', 'drop'].forEach(eventName => {
-            dropZone.addEventListener(eventName, (e) => {
-                e.preventDefault();
-                dropZone.classList.remove('dragover');
-            }, false);
-        });
-
-        dropZone.addEventListener('drop', (e) => {
-            const dt = e.dataTransfer;
-            const files = dt.files;
-            const fileInput = document.getElementById('file-input');
-            fileInput.files = files;
-            handleFileSelect(fileInput);
-        });
 
         async function startAnalysis() {
             const text = document.getElementById('doc-text-input').value.trim();
@@ -522,7 +460,7 @@
             document.getElementById('error').style.display = 'none';
             document.getElementById('input-screen').style.display = 'block';
             document.getElementById('file-input').value = '';
-            document.getElementById('file-badge-container').innerHTML = '';
+            handleFileSelect(document.getElementById('file-input'));
             document.getElementById('doc-text-input').value = '';
         }
 
