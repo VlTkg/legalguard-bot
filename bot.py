@@ -6,7 +6,7 @@ import google.generativeai as genai
 from quart import Quart, request, jsonify, send_from_directory
 from pypdf import PdfReader
 import docx
-from odf import text, telement
+from odf import text
 from odf.opendocument import load
 
 logging.basicConfig(level=logging.INFO)
