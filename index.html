@@ -13,9 +13,15 @@
             --hint-color: var(--tg-theme-hint-color, #8e8e93);
             --button-color: var(--tg-theme-button-color, #248277);
             --button-text-color: var(--tg-theme-button-text-color, #ffffff);
+            --border-color: rgba(142, 142, 147, 0.2);
             --high-risk: #ff3b30;
             --med-risk: #ff9500;
             --low-risk: #34c759;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
         }
 
         body {
@@ -24,7 +30,6 @@
             color: var(--text-color);
             margin: 0;
             padding: 16px;
-            box-sizing: border-box;
         }
 
         .header {
@@ -33,13 +38,13 @@
 
         .header h1 {
             font-size: 22px;
-            margin: 0 0 6px 0;
+            margin: 0 0 4px 0;
             font-weight: 700;
         }
 
         .header p {
             color: var(--hint-color);
-            font-size: 14px;
+            font-size: 13px;
             margin: 0;
         }
 
@@ -48,34 +53,119 @@
         }
 
         .form-label {
-            font-size: 12px;
-            font-weight: 600;
+            font-size: 11px;
+            font-weight: 700;
             color: var(--hint-color);
             text-transform: uppercase;
+            letter-spacing: 0.5px;
             margin-bottom: 6px;
             display: block;
         }
 
         .select-input, .input-area {
             width: 100%;
-            border: 1px solid rgba(142, 142, 147, 0.3);
-            border-radius: 10px;
-            padding: 10px;
-            font-size: 13px;
-            box-sizing: border-box;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 12px;
+            font-size: 14px;
             background: var(--card-bg);
             color: var(--text-color);
             font-family: inherit;
-            -webkit-user-select: text;
-            user-select: text;
+            outline: none;
+            transition: border-color 0.2s;
+            -webkit-user-select: text !important;
+            user-select: text !important;
+        }
+
+        .select-input:focus, .input-area:focus {
+            border-color: var(--button-color);
         }
 
         .select-input {
             appearance: none;
             background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
             background-repeat: no-repeat;
-            background-position: right 10px center;
+            background-position: right 12px center;
             background-size: 16px;
+        }
+
+        /* Эстетичный контейнер загрузки файла */
+        .drop-zone {
+            border: 2px dashed var(--border-color);
+            border-radius: 12px;
+            padding: 20px 16px;
+            text-align: center;
+            background: var(--card-bg);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: var(--button-color);
+            background: rgba(36, 130, 119, 0.04);
+        }
+
+        .drop-zone input[type="file"] {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .drop-icon {
+            font-size: 28px;
+            margin-bottom: 6px;
+            display: block;
+        }
+
+        .drop-text-main {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-color);
+        }
+
+        .drop-text-sub {
+            font-size: 11px;
+            color: var(--hint-color);
+            margin-top: 4px;
+        }
+
+        .file-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(36, 130, 119, 0.1);
+            color: var(--button-color);
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-top: 8px;
+        }
+
+        .divider-container {
+            display: flex;
+            align-items: center;
+            text-align: center;
+            margin: 16px 0;
+            color: var(--hint-color);
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .divider-container::before, .divider-container::after {
+            content: '';
+            flex: 1;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .divider-container span {
+            padding: 0 10px;
         }
 
         .input-header {
@@ -86,50 +176,19 @@
         }
 
         .paste-btn {
-            background: none;
+            background: rgba(36, 130, 119, 0.1);
             border: none;
             color: var(--button-color);
             font-size: 12px;
             font-weight: 600;
             cursor: pointer;
-            padding: 0;
+            padding: 4px 10px;
+            border-radius: 6px;
+            transition: background 0.2s;
         }
 
-        .file-upload-box {
-            border: 2px dashed rgba(142, 142, 147, 0.4);
-            border-radius: 10px;
-            padding: 16px;
-            text-align: center;
-            background: var(--card-bg);
-            cursor: pointer;
-            transition: border-color 0.2s;
-        }
-
-        .file-upload-box input[type="file"] {
-            display: none;
-        }
-
-        .file-upload-label {
-            font-size: 13px;
-            color: var(--hint-color);
-            cursor: pointer;
-        }
-
-        .file-name-display {
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--button-color);
-            margin-top: 6px;
-            word-break: break-all;
-        }
-
-        .divider {
-            text-align: center;
-            color: var(--hint-color);
-            font-size: 12px;
-            margin: 12px 0;
-            font-weight: 600;
-            text-transform: uppercase;
+        .paste-btn:active {
+            background: rgba(36, 130, 119, 0.2);
         }
 
         .main-btn {
@@ -137,12 +196,13 @@
             color: var(--button-text-color);
             border: none;
             width: 100%;
-            padding: 12px;
-            border-radius: 10px;
-            font-size: 14px;
+            padding: 14px;
+            border-radius: 12px;
+            font-size: 15px;
             font-weight: 600;
             cursor: pointer;
-            margin-top: 10px;
+            margin-top: 8px;
+            box-shadow: 0 4px 12px rgba(36, 130, 119, 0.2);
         }
 
         .summary-cards {
@@ -177,12 +237,6 @@
         .summary-card.med .number { color: var(--med-risk); }
         .summary-card.low .number { color: var(--low-risk); }
 
-        .section-title {
-            font-size: 16px;
-            font-weight: 600;
-            margin: 20px 0 12px 0;
-        }
-
         .risk-card {
             background-color: var(--card-bg);
             border-radius: 12px;
@@ -201,16 +255,17 @@
             justify-content: space-between;
             align-items: center;
             font-weight: 600;
-            font-size: 15px;
+            font-size: 14px;
             margin-bottom: 8px;
         }
 
         .risk-badge {
-            font-size: 11px;
+            font-size: 10px;
             padding: 3px 8px;
             border-radius: 6px;
-            font-weight: 600;
+            font-weight: 700;
             color: #fff;
+            text-transform: uppercase;
         }
 
         .badge-high { background-color: var(--high-risk); }
@@ -234,7 +289,7 @@
             font-weight: 600;
             color: var(--hint-color);
             margin-bottom: 4px;
-            font-size: 11px;
+            font-size: 10px;
             text-transform: uppercase;
         }
 
@@ -249,49 +304,6 @@
             font-weight: 600;
             margin-top: 10px;
             cursor: pointer;
-        }
-
-        .clause-feedback {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-top: 12px;
-            padding-top: 8px;
-            border-top: 1px solid rgba(142, 142, 147, 0.15);
-            font-size: 12px;
-            color: var(--hint-color);
-        }
-
-        .vote-btns {
-            display: flex;
-            gap: 6px;
-        }
-
-        .vote-btn {
-            background: none;
-            border: 1px solid var(--hint-color);
-            border-radius: 6px;
-            padding: 3px 8px;
-            cursor: pointer;
-            font-size: 12px;
-            color: var(--text-color);
-        }
-
-        .rating-section {
-            background: var(--card-bg);
-            border-radius: 12px;
-            padding: 16px;
-            text-align: center;
-            margin-top: 24px;
-            margin-bottom: 16px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-        }
-
-        .rating-stars {
-            font-size: 26px;
-            margin: 10px 0;
-            cursor: pointer;
-            letter-spacing: 4px;
         }
 
         #loading, #error {
@@ -315,7 +327,7 @@
         </div>
 
         <div class="form-group">
-            <label class="form-label" for="jurisdiction-select">Юрисдикция (законодательство)</label>
+            <label class="form-label">Юрисдикция</label>
             <select id="jurisdiction-select" class="select-input">
                 <option value="RU">Российская Федерация (РФ)</option>
                 <option value="KZ">Республика Казахстан (РК)</option>
@@ -325,10 +337,10 @@
         </div>
 
         <div class="form-group">
-            <label class="form-label" for="category-select">Тип договора / Контекст</label>
+            <label class="form-label">Тип договора</label>
             <select id="category-select" class="select-input">
                 <option value="freelance">Фриланс / Оказание услуг / ГПХ</option>
-                <option value="it_dev">Разработка ПО / IT-услуги / Лицензии</option>
+                <option value="it_dev">Разработка ПО / IT-услуги</option>
                 <option value="nda">Соглашение о конфиденциальности (NDA)</option>
                 <option value="rent">Аренда недвижимости / Оборудования</option>
                 <option value="supply">Поставка / Купля-продажа</option>
@@ -336,38 +348,42 @@
             </select>
         </div>
 
-        <!-- Загрузка файла -->
+        <!-- Красивый стилизованный блок загрузки файла -->
         <div class="form-group">
-            <label class="form-label">Загрузить файл договора (PDF, DOCX, TXT)</label>
-            <div class="file-upload-box" onclick="document.getElementById('file-input').click()">
-                <div class="file-upload-label">📎 Нажмите, чтобы выбрать файл с устройства</div>
+            <label class="form-label">Файл договора</label>
+            <div class="drop-zone" id="drop-zone">
                 <input type="file" id="file-input" accept=".pdf,.docx,.doc,.txt" onchange="handleFileSelect(this)">
-                <div id="file-name" class="file-name-display"></div>
+                <span class="drop-icon">📂</span>
+                <div class="drop-text-main">Выберите файл или перетащите сюда</div>
+                <div class="drop-text-sub">Поддерживаются PDF, DOCX, TXT</div>
+                <div id="file-badge-container"></div>
             </div>
         </div>
 
-        <div class="divider">Или вставьте текст</div>
+        <div class="divider-container">
+            <span>или</span>
+        </div>
 
-        <!-- Ввод текста -->
+        <!-- Ввод и вставка текста -->
         <div class="form-group">
             <div class="input-header">
-                <label class="form-label" for="doc-text-input" style="margin: 0;">Текст договора</label>
+                <label class="form-label" style="margin:0;">Текст договора</label>
                 <button type="button" class="paste-btn" onclick="pasteFromClipboard()">📋 Вставить из буфера</button>
             </div>
-            <textarea id="doc-text-input" class="input-area" rows="6" placeholder="Вставьте сюда текст договора..."></textarea>
+            <textarea id="doc-text-input" class="input-area" rows="6" placeholder="Вставьте текст или отдельные пункты (Ctrl+V или правая кнопка мыши)..." spellcheck="false"></textarea>
         </div>
         
         <button class="main-btn" onclick="startAnalysis()">🔍 Проверить договор</button>
     </div>
 
-    <!-- 2. Экран результатов отчета -->
+    <!-- 2. Экран результатов -->
     <div id="report-screen" style="display: none;">
         <div class="header" style="display: flex; justify-content: space-between; align-items: center;">
             <div>
                 <h1 id="doc-title">Договор</h1>
                 <p id="doc-meta" style="font-size: 12px; color: var(--hint-color);"></p>
             </div>
-            <button onclick="resetToInput()" style="background: none; border: 1px solid var(--hint-color); padding: 6px 10px; border-radius: 8px; font-size: 12px; color: var(--text-color); cursor: pointer;">Новая проверка</button>
+            <button onclick="resetToInput()" style="background: none; border: 1px solid var(--border-color); padding: 6px 12px; border-radius: 8px; font-size: 12px; color: var(--text-color); cursor: pointer;">Новая проверка</button>
         </div>
 
         <div class="summary-cards">
@@ -385,30 +401,8 @@
             </div>
         </div>
 
-        <div class="section-title">Детальный разбор рисков</div>
+        <div style="font-size: 15px; font-weight: 700; margin: 20px 0 12px 0;">Детальный разбор рисков</div>
         <div id="risks-list"></div>
-
-        <!-- Оценка качества работы -->
-        <section class="rating-section">
-            <div style="font-weight: 600; font-size: 14px;">Оцените качество разбора</div>
-            <div class="rating-stars" onclick="rateAnalysis(event)">⭐⭐⭐⭐⭐</div>
-            <div id="rating-status" style="font-size: 12px; color: var(--hint-color);">Нажмите на звезду для оценки</div>
-        </section>
-
-        <!-- Блок сообщения о неполадках -->
-        <section style="background: var(--card-bg); border-radius: 12px; padding: 16px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
-            <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px; color: var(--hint-color);">
-                🛠 Нашли ошибку или неполадку?
-            </div>
-            <div style="font-size: 12px; margin-bottom: 10px; color: var(--hint-color);">
-                Опишите проблему, если что-то отображается некорректно:
-            </div>
-            <textarea id="bug-text" rows="3" placeholder="Опишите неполадку..." style="width: 100%; border: 1px solid rgba(142, 142, 147, 0.3); border-radius: 8px; padding: 8px; font-size: 13px; box-sizing: border-box; background: var(--bg-color); color: var(--text-color); resize: none; font-family: inherit;"></textarea>
-            <button onclick="sendBugReport()" style="background-color: var(--button-color); color: var(--button-text-color); border: none; width: 100%; padding: 10px; border-radius: 8px; font-size: 13px; font-weight: 600; margin-top: 8px; cursor: pointer;">
-                Отправить сообщение о проблеме
-            </button>
-            <div id="bug-status" style="font-size: 12px; text-align: center; margin-top: 8px; font-weight: 600;"></div>
-        </section>
     </div>
 
     <script>
@@ -419,28 +413,67 @@
         const urlParams = new URLSearchParams(window.location.search);
         const userId = urlParams.get('user_id') || (tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : '123456');
 
+        // Обработка выбора файла
         function handleFileSelect(input) {
-            const fileNameDiv = document.getElementById('file-name');
+            const container = document.getElementById('file-badge-container');
             if (input.files && input.files[0]) {
-                fileNameDiv.innerText = `📄 Выбран файл: ${input.files[0].name}`;
+                const name = input.files[0].name;
+                container.innerHTML = `<div class="file-badge">📄 ${escapeHtml(name)}</div>`;
             } else {
-                fileNameDiv.innerText = '';
+                container.innerHTML = '';
             }
         }
 
+        // Продвинутая функция вставки из буфера обмена (для ПК и Смартфонов)
         async function pasteFromClipboard() {
+            const textarea = document.getElementById('doc-text-input');
+            textarea.focus();
+
             try {
+                // Попытка системного Clipboard API
                 const text = await navigator.clipboard.readText();
                 if (text) {
-                    document.getElementById('doc-text-input').value = text;
+                    textarea.value = text;
                     if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
                 } else {
                     alert("Буфер обмена пуст.");
                 }
             } catch (err) {
-                alert("Пожалуйста, зажмите пальцем поле ввода и выберите «Вставить» из всплывающего меню.");
+                // Фоллбек для Telegram Desktop
+                try {
+                    const successful = document.execCommand('paste');
+                    if (!successful && !textarea.value) {
+                        alert("Нажмите Ctrl + V (или Cmd + V на Mac) для вставки текста в поле.");
+                    }
+                } catch (e) {
+                    alert("Нажмите Ctrl + V (или Cmd + V на Mac) для вставки текста.");
+                }
             }
         }
+
+        // Поддержка Drag & Drop для компьютера
+        const dropZone = document.getElementById('drop-zone');
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                dropZone.classList.add('dragover');
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('dragover');
+            }, false);
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            const fileInput = document.getElementById('file-input');
+            fileInput.files = files;
+            handleFileSelect(fileInput);
+        });
 
         async function startAnalysis() {
             const text = document.getElementById('doc-text-input').value.trim();
@@ -489,7 +522,7 @@
             document.getElementById('error').style.display = 'none';
             document.getElementById('input-screen').style.display = 'block';
             document.getElementById('file-input').value = '';
-            document.getElementById('file-name').innerText = '';
+            document.getElementById('file-badge-container').innerHTML = '';
             document.getElementById('doc-text-input').value = '';
         }
 
@@ -499,7 +532,7 @@
 
             const categoryLabels = {
                 'freelance': 'Фриланс / ГПХ',
-                'it_dev': 'IT / Разработка ПО',
+                'it_dev': 'IT / Разработка',
                 'nda': 'NDA',
                 'rent': 'Аренда',
                 'supply': 'Поставка',
@@ -543,125 +576,14 @@
                             <div class="text-block-title">Предлагаемая правка:</div>
                             <b>"${escapeHtml(risk.proposed)}"</b>
                         </div>
-                        <button class="copy-btn" onclick="copyToClipboard('${escapeJs(risk.proposed)}')">Скопировать правку</button>
-                        
-                        <div class="clause-feedback">
-                            <span>Полезен разбор?</span>
-                            <div class="vote-btns">
-                                <button class="vote-btn" onclick="sendVote(${risk.id}, 'like', this)">👍</button>
-                                <button class="vote-btn" onclick="sendVote(${risk.id}, 'dislike', this)">👎</button>
-                            </div>
-                        </div>
                     </div>
                 `;
                 listContainer.appendChild(card);
             });
         }
 
-        function copyToClipboard(text) {
-            navigator.clipboard.writeText(text).then(() => {
-                if (tg.HapticFeedback) {
-                    tg.HapticFeedback.notificationOccurred('success');
-                }
-                tg.showAlert("Предлагаемая правка скопирована в буфер обмена!");
-            });
-        }
-
-        async function sendVote(clauseId, type, btnElement) {
-            if (tg.HapticFeedback) {
-                tg.HapticFeedback.impactOccurred('light');
-            }
-
-            const parent = btnElement.parentElement;
-
-            try {
-                await fetch('/api/feedback', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        user_id: userId,
-                        action: "clause_vote",
-                        clause_id: clauseId,
-                        vote: type
-                    })
-                });
-                parent.innerHTML = '<span style="color: var(--low-risk); font-weight:600;">Спасибо!</span>';
-            } catch (e) {
-                console.error("Ошибка отправки фидбека:", e);
-                parent.innerHTML = '<span style="color: var(--low-risk); font-weight:600;">Принято!</span>';
-            }
-        }
-
-        async function rateAnalysis(e) {
-            if (tg.HapticFeedback) {
-                tg.HapticFeedback.notificationOccurred('success');
-            }
-            
-            document.getElementById('rating-status').innerText = 'Спасибо за Вашу оценку! ❤️';
-
-            try {
-                await fetch('/api/feedback', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        user_id: userId,
-                        action: "rating",
-                        stars: 5
-                    })
-                });
-            } catch (e) {
-                console.error("Ошибка отправки оценки:", e);
-            }
-        }
-
-        async function sendBugReport() {
-            const input = document.getElementById('bug-text');
-            const statusDiv = document.getElementById('bug-status');
-            const bugText = input.value.trim();
-
-            if (!bugText) {
-                statusDiv.style.color = 'var(--high-risk)';
-                statusDiv.innerText = 'Пожалуйста, напишите текст сообщения.';
-                return;
-            }
-
-            if (tg.HapticFeedback) {
-                tg.HapticFeedback.impactOccurred('medium');
-            }
-
-            statusDiv.style.color = 'var(--hint-color)';
-            statusDiv.innerText = 'Отправка...';
-
-            try {
-                const res = await fetch('/api/bugreport', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        user_id: userId,
-                        user_name: tg.initDataUnsafe.user ? (tg.initDataUnsafe.user.username || tg.initDataUnsafe.user.first_name) : 'Неизвестный',
-                        report: bugText
-                    })
-                });
-
-                if (res.ok) {
-                    input.value = '';
-                    statusDiv.style.color = 'var(--low-risk)';
-                    statusDiv.innerText = 'Спасибо! Сообщение о неполадке отправлено.';
-                } else {
-                    throw new Error();
-                }
-            } catch (e) {
-                statusDiv.style.color = 'var(--high-risk)';
-                statusDiv.innerText = 'Ошибка отправки. Попробуйте позже.';
-            }
-        }
-
         function escapeHtml(str) {
             return (str || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        }
-
-        function escapeJs(str) {
-            return (str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
         }
     </script>
 </body>
