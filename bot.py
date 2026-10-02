@@ -6,6 +6,8 @@ import google.generativeai as genai
 from quart import Quart, request, jsonify, send_from_directory
 from pypdf import PdfReader
 import docx
+from odf import text, telement
+from odf.opendocument import load
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("LegalGuard-Backend")
@@ -17,26 +19,48 @@ if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 
 def extract_text_from_file(file_bytes, filename):
-    """Извлечение текста из поддерживаемых форматов"""
+    """Извлечение текста из PDF, DOCX, ODT, TXT, RTF"""
     filename_lower = filename.lower()
     
     try:
+        # PDF
         if filename_lower.endswith('.pdf'):
             reader = PdfReader(io.BytesIO(file_bytes))
-            text = "\n".join([page.extract_text() or "" for page in reader.pages])
-            return text
+            text_content = "\n".join([page.extract_text() or "" for page in reader.pages])
+            return text_content
             
+        # DOCX / DOC
         elif filename_lower.endswith(('.docx', '.doc')):
             doc = docx.Document(io.BytesIO(file_bytes))
-            text = "\n".join([p.text for p in doc.paragraphs])
-            return text
-            
+            text_content = "\n".join([p.text for p in doc.paragraphs if p.text.strip()])
+            return text_content
+
+        # ODT (OpenDocument Text)
+        elif filename_lower.endswith('.odt'):
+            odt_doc = load(io.BytesIO(file_bytes))
+            paragraphs = odt_doc.getElementsByType(telement.Element)
+            extracted = []
+            for p in odt_doc.getElementsByType(text.P):
+                # Извлекаем текст из узлов параграфа
+                p_text = "".join([node.data for node in p.childNodes if node.nodeType == 3])
+                if p_text.strip():
+                    extracted.append(p_text)
+            return "\n".join(extracted)
+
+        # TXT / RTF (С поддержкой UTF-8 и CP1251)
         elif filename_lower.endswith(('.txt', '.rtf')):
-            return file_bytes.decode('utf-8', errors='ignore')
+            try:
+                return file_bytes.decode('utf-8')
+            except UnicodeDecodeError:
+                return file_bytes.decode('cp1251', errors='ignore')
             
         else:
-            # Для нетекстовых/изображений
-            return file_bytes.decode('utf-8', errors='ignore')
+            # Резервный попытка прочитать как текст
+            try:
+                return file_bytes.decode('utf-8')
+            except UnicodeDecodeError:
+                return file_bytes.decode('cp1251', errors='ignore')
+
     except Exception as e:
         logger.error(f"Ошибка при считывании файла {filename}: {e}")
         return ""
@@ -59,11 +83,21 @@ async def analyze_document():
             uploaded_file = files['file']
             file_bytes = uploaded_file.read()
             extracted = extract_text_from_file(file_bytes, uploaded_file.filename)
-            if extracted:
+            if extracted and extracted.strip():
                 document_text = extracted
 
-        if not document_text.strip():
-            return jsonify({"error": "Не удалось извлечь текст из документа"}), 400
+        if not document_text or not document_text.strip():
+            return jsonify({
+                "doc_title": "Ошибка чтения",
+                "summary": {"high": 1, "medium": 0, "low": 0},
+                "risks": [{
+                    "clause": "Файл/Текст",
+                    "level": "high",
+                    "comment": "Не удалось извлечь текст из файла или поле ввода пустое. Убедитесь, что файл не защищен паролем.",
+                    "original": "",
+                    "proposed": ""
+                }]
+            }), 200
 
         prompt = f"""
 Ты опытный корпоративный юрист. Проведи экспресс-анализ договора.
@@ -116,7 +150,7 @@ async def analyze_document():
             "risks": [{
                 "clause": "Ошибка",
                 "level": "high",
-                "comment": "Не удалось проанализировать файл. Проверьте формат текста.",
+                "comment": "Произошла ошибка при обращении к ИИ. Попробуйте еще раз.",
                 "original": "",
                 "proposed": ""
             }]
