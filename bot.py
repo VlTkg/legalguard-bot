@@ -84,6 +84,13 @@ def extract_text_from_file(file_bytes, filename):
         return ""
 
 
+def call_gemini_sync(prompt, model_name):
+    """Синхронный вызов Gemini в отдельном потоке"""
+    model = genai.GenerativeModel(model_name)
+    response = model.generate_content(prompt)
+    return response.text if response else None
+
+
 @app.route('/')
 async def serve_webapp():
     return await send_from_directory('.', 'index.html')
@@ -128,7 +135,7 @@ async def analyze_document():
 
 Текст договора:
 ---
-{document_text[:12000]}
+{document_text[:10000]}
 ---
 
 Ответь СТРОГО в формате JSON без маркдаун-разметки:
@@ -152,36 +159,31 @@ async def analyze_document():
 Значения для "level": строго "high", "med", "low".
 """
 
-        # Асинхронный вызов Gemini API через await
-        response = None
-        for model_name in ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash']:
+        raw_text = None
+        # Перебираем поддерживаемые модели в отдельном фоновом потоке
+        for model_name in ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.5-flash']:
             try:
-                logger.info(f"Запрос к Gemini API с моделью {model_name}...")
-                model = genai.GenerativeModel(model_name)
-                # Ключевой момент: генерация должна быть асинхронной!
-                response = await asyncio.wait_for(
-                    model.generate_content_async(prompt),
-                    timeout=25.0
-                )
-                if response and response.text:
-                    logger.info(f"Успешный ответ от модели {model_name}")
+                logger.info(f"Запрос к Gemini ({model_name}) через поток...")
+                raw_text = await asyncio.to_thread(call_gemini_sync, prompt, model_name)
+                if raw_text:
+                    logger.info(f"Успешный ответ от {model_name}")
                     break
             except Exception as err:
-                logger.warning(f"Модель {model_name} не ответила: {err}")
+                logger.warning(f"Ошибка запроса к {model_name}: {err}")
                 continue
 
-        if not response or not response.text:
-            raise Exception("Ни одна из моделей Gemini не вернула ответ в отведенное время.")
+        if not raw_text:
+            raise Exception("Не удалось получить ответ от Gemini API. Проверьте API ключ GEMINI_API_KEY в Render.")
 
-        raw_response = response.text.strip()
-        if raw_response.startswith('```json'):
-            raw_response = raw_response[7:]
-        if raw_response.startswith('```'):
-            raw_response = raw_response[3:]
-        if raw_response.endswith('```'):
-            raw_response = raw_response[:-3]
+        raw_text = raw_text.strip()
+        if raw_text.startswith('```json'):
+            raw_text = raw_text[7:]
+        if raw_text.startswith('```'):
+            raw_text = raw_text[3:]
+        if raw_text.endswith('```'):
+            raw_text = raw_text[:-3]
 
-        result_json = json.loads(raw_response.strip())
+        result_json = json.loads(raw_text.strip())
         return jsonify(result_json)
 
     except Exception as e:
