@@ -3,6 +3,7 @@ import io
 import json
 import logging
 import asyncio
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as AsyncTimeoutError
 from zipfile import ZipFile
 import xml.etree.ElementTree as ET
 
@@ -19,6 +20,8 @@ app = Quart(__name__, static_folder=".")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
+
+executor = ThreadPoolExecutor(max_workers=4)
 
 
 def parse_odt_file(file_bytes):
@@ -84,8 +87,26 @@ def extract_text_from_file(file_bytes, filename):
         return ""
 
 
+def get_available_flash_models():
+    """Динамическое получение списка доступных flash-моделей"""
+    try:
+        available_models = []
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                # Берем только модели с 'flash' в названии
+                if 'flash' in m.name:
+                    model_id = m.name.replace('models/', '')
+                    available_models.append(model_id)
+        
+        logger.info(f"Доступные flash-модели: {available_models}")
+        return available_models
+    except Exception as e:
+        logger.error(f"Не удалось получить список моделей: {e}")
+        return []
+
+
 def call_gemini_sync(prompt, model_name):
-    """Синхронный вызов Gemini в отдельном потоке"""
+    """Синхронный вызов модели"""
     model = genai.GenerativeModel(model_name)
     response = model.generate_content(prompt)
     return response.text if response else None
@@ -160,20 +181,30 @@ async def analyze_document():
 """
 
         raw_text = None
-        # Перебираем поддерживаемые модели в отдельном фоновом потоке
-        for model_name in ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.5-flash']:
+        loop = asyncio.get_event_loop()
+
+        # Получаем актуальный список моделей динамически из API
+        candidate_models = await loop.run_in_executor(executor, get_available_flash_models)
+        
+        # Если список пуст, используем стандартные имена как запасной вариант
+        if not candidate_models:
+            candidate_models = ['gemini-3.8-flash', 'gemini-1.5-flash']
+
+        for model_name in candidate_models:
             try:
-                logger.info(f"Запрос к Gemini ({model_name}) через поток...")
-                raw_text = await asyncio.to_thread(call_gemini_sync, prompt, model_name)
+                logger.info(f"Пробуем модель: {model_name}...")
+                future = loop.run_in_executor(executor, call_gemini_sync, prompt, model_name)
+                # Таймаут 15 секунд на попытку
+                raw_text = await asyncio.wait_for(future, timeout=15.0)
                 if raw_text:
                     logger.info(f"Успешный ответ от {model_name}")
                     break
-            except Exception as err:
-                logger.warning(f"Ошибка запроса к {model_name}: {err}")
+            except (AsyncTimeoutError, Exception) as err:
+                logger.warning(f"Ошибка или таймаут модели {model_name}: {err}")
                 continue
 
         if not raw_text:
-            raise Exception("Не удалось получить ответ от Gemini API. Проверьте API ключ GEMINI_API_KEY в Render.")
+            raise Exception("Ни одна из доступных моделей Gemini не вернула ответ. Проверьте логи на Render.")
 
         raw_text = raw_text.strip()
         if raw_text.startswith('```json'):
