@@ -21,14 +21,13 @@ if GEMINI_API_KEY:
 
 
 def parse_odt_file(file_bytes):
-    """Надежное извлечение текста из ODT файла через встроенный zipfile и ElementTree"""
+    """Извлечение текста из ODT (ZipFile + ElementTree)"""
     try:
         with ZipFile(io.BytesIO(file_bytes)) as z:
             xml_content = z.read('content.xml')
             tree = ET.fromstring(xml_content)
             
             paragraphs = []
-            # Проходим по всем элементам XML и собираем текст из тегов параграфов
             for elem in tree.iter():
                 if elem.tag.endswith('p') or elem.tag.endswith('h'):
                     text = "".join(elem.itertext()).strip()
@@ -36,22 +35,22 @@ def parse_odt_file(file_bytes):
                         paragraphs.append(text)
             return "\n".join(paragraphs)
     except Exception as e:
-        logger.error(f"Ошибка парсинга ODT через ZipFile: {e}")
+        logger.error(f"Ошибка парсинга ODT: {e}")
         return ""
 
 
 def extract_text_from_file(file_bytes, filename):
-    """Универсальный извлекатель текста для PDF, DOCX, ODT, TXT"""
+    """Универсальное извлечение текста из файлов"""
     if not file_bytes:
         return ""
 
     filename_lower = filename.lower()
-    logger.info(f"Начало извлечения текста из файла: {filename} (размер: {len(file_bytes)} байт)")
+    logger.info(f"Обработка файла {filename} ({len(file_bytes)} байт)")
 
     try:
-        # 1. TXT / RTF / Простой текст
+        # 1. TXT / RTF
         if filename_lower.endswith('.txt'):
-            for enc in ['utf-8', 'cp1251', 'windows-1251', 'utf-16', 'latin1']:
+            for enc in ['utf-8-sig', 'utf-8', 'cp1251', 'windows-1251', 'utf-16', 'latin1']:
                 try:
                     text = file_bytes.decode(enc).strip()
                     if text:
@@ -60,7 +59,7 @@ def extract_text_from_file(file_bytes, filename):
                     continue
             return file_bytes.decode('utf-8', errors='ignore')
 
-        # 2. ODT (OpenDocument Text)
+        # 2. ODT
         elif filename_lower.endswith('.odt'):
             return parse_odt_file(file_bytes)
 
@@ -76,12 +75,11 @@ def extract_text_from_file(file_bytes, filename):
             paragraphs = [p.text for p in doc.paragraphs if p.text and p.text.strip()]
             return "\n".join(paragraphs)
 
-        # Если формат не определен по расширению, пробуем как декодировать текст
         else:
             return file_bytes.decode('utf-8', errors='ignore')
 
     except Exception as e:
-        logger.error(f"Критическая ошибка при обработке {filename}: {e}")
+        logger.error(f"Ошибка извлечения текста из {filename}: {e}")
         return ""
 
 
@@ -100,32 +98,28 @@ async def analyze_document():
         category = form.get('category', 'general')
         document_text = form.get('text', '')
 
-        # Важно для Quart: чтение файла через AWAIT
+        # В Quart метод read() синхронный — БЕЗ await!
         if 'file' in files:
             uploaded_file = files['file']
-            file_bytes = await uploaded_file.read()
+            file_bytes = uploaded_file.read()
 
             if file_bytes:
                 extracted = extract_text_from_file(file_bytes, uploaded_file.filename)
                 if extracted and extracted.strip():
                     document_text = extracted
 
-        # Если текст так и не удалось получить
         if not document_text or not document_text.strip():
-            logger.warning("Текст документа не извлечен или пуст.")
             return jsonify({
-                "doc_title": "Ошибка извлечения текста",
+                "doc_title": "Ошибка чтения файла",
                 "summary": {"high": 1, "medium": 0, "low": 0},
                 "risks": [{
-                    "clause": "Файл / Текст",
+                    "clause": "Проверка файла",
                     "level": "high",
-                    "comment": "Не удалось прочитать текст из загруженного файла. Проверьте, что файл не пустой и не защищен от чтения.",
+                    "comment": "Не удалось прочитать текст из файла. Проверьте, что файл не пустой.",
                     "original": "",
                     "proposed": ""
                 }]
             }), 200
-
-        logger.info(f"Текст успешно извлечен (длина: {len(document_text)} символов). Отправка в Gemini...")
 
         prompt = f"""
 Ты опытный корпоративный юрист. Проведи экспресс-анализ договора.
@@ -173,7 +167,7 @@ async def analyze_document():
         return jsonify(result_json)
 
     except Exception as e:
-        logger.error(f"Ошибка сервера во время анализа: {e}")
+        logger.error(f"Ошибка анализа: {e}")
         return jsonify({
             "doc_title": "Ошибка анализа",
             "summary": {"high": 1, "medium": 0, "low": 0},
