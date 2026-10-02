@@ -98,7 +98,6 @@ async def analyze_document():
         category = form.get('category', 'general')
         document_text = form.get('text', '')
 
-        # В Quart метод read() синхронный — БЕЗ await!
         if 'file' in files:
             uploaded_file = files['file']
             file_bytes = uploaded_file.read()
@@ -152,8 +151,14 @@ async def analyze_document():
 Значения для "level": строго "high", "med", "low".
 """
 
-        model = genai.GenerativeModel('gemini-2.5-flash')
-        response = model.generate_content(prompt)
+        # Используем актуальную модель Gemini
+        try:
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            response = model.generate_content(prompt)
+        except Exception:
+            # Резервное переключение, если провайдер требует gemini-1.5-pro или gemini-2.0-flash
+            model = genai.GenerativeModel('gemini-1.5-pro')
+            response = model.generate_content(prompt)
 
         raw_response = response.text.strip()
         if raw_response.startswith('```json'):
