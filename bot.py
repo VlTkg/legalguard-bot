@@ -2,6 +2,7 @@ import os
 import io
 import json
 import logging
+import asyncio
 from zipfile import ZipFile
 import xml.etree.ElementTree as ET
 
@@ -127,7 +128,7 @@ async def analyze_document():
 
 Текст договора:
 ---
-{document_text[:15000]}
+{document_text[:12000]}
 ---
 
 Ответь СТРОГО в формате JSON без маркдаун-разметки:
@@ -151,9 +152,26 @@ async def analyze_document():
 Значения для "level": строго "high", "med", "low".
 """
 
-        # Используем актуальную модель gemini-3.8-flash
-        model = genai.GenerativeModel('gemini-3.8-flash')
-        response = model.generate_content(prompt)
+        # Асинхронный вызов Gemini API через await
+        response = None
+        for model_name in ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash']:
+            try:
+                logger.info(f"Запрос к Gemini API с моделью {model_name}...")
+                model = genai.GenerativeModel(model_name)
+                # Ключевой момент: генерация должна быть асинхронной!
+                response = await asyncio.wait_for(
+                    model.generate_content_async(prompt),
+                    timeout=25.0
+                )
+                if response and response.text:
+                    logger.info(f"Успешный ответ от модели {model_name}")
+                    break
+            except Exception as err:
+                logger.warning(f"Модель {model_name} не ответила: {err}")
+                continue
+
+        if not response or not response.text:
+            raise Exception("Ни одна из моделей Gemini не вернула ответ в отведенное время.")
 
         raw_response = response.text.strip()
         if raw_response.startswith('```json'):
