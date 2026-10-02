@@ -1,4 +1,6 @@
 quart==0.19.4
+flask==3.0.3
+werkzeug==3.0.3
 hypercorn==0.16.0
 google-generativeai
 pypdf
