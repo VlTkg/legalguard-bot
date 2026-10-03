@@ -21,7 +21,14 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("LegalGuard-Backend")
 
 app = Quart(__name__, static_folder=".")
-app = cors(app, allow_origin="*")
+
+# Полная настройка CORS для поддержки запросов с любого домена/внутри Telegram WebApp
+app = cors(
+    app,
+    allow_origin="*",
+    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS", "DELETE", "PUT"]
+)
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 DATABASE_URL = os.environ.get("DATABASE_URL")
@@ -184,8 +191,11 @@ async def serve_webapp():
     return await send_from_directory('.', 'index.html')
 
 
-@app.route('/api/analyze', methods=['POST'])
+@app.route('/api/analyze', methods=['POST', 'OPTIONS'])
 async def analyze_document():
+    if request.method == 'OPTIONS':
+        return '', 200
+
     try:
         form = await request.form
         files = await request.files
@@ -296,9 +306,12 @@ async def analyze_document():
         }), 200
 
 
-@app.route('/api/feedback', methods=['POST'])
+@app.route('/api/feedback', methods=['POST', 'OPTIONS'])
 async def save_feedback():
     """Сохранение обратной связи в PostgreSQL + вывод в логи"""
+    if request.method == 'OPTIONS':
+        return '', 200
+
     try:
         data = await request.get_json()
         category = data.get('category', 'quality')
@@ -374,94 +387,3 @@ async def view_feedback_admin():
 <body>
     <div class="header">
         <h1>Реестр обратной связи пользователей</h1>
-        <a href="/admin/feedback/export" class="btn">📥 Скачать CSV</a>
-    </div>
-    <table>
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Дата (UTC)</th>
-                <th>Тип</th>
-                <th>Оценка</th>
-                <th>Лайк/Дизлайк</th>
-                <th>Текст комментария</th>
-                <th>Действие</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for row in rows %}
-            <tr>
-                <td>{{ row['id'] }}</td>
-                <td>{{ row['created_at'] }}</td>
-                <td>
-                    {% if row['category'] == 'tech_issue' %}
-                        <span class="badge-tech">Баг / Тех вопр</span>
-                    {% else %}
-                        <span class="badge-quality">Качество</span>
-                    {% endif %}
-                </td>
-                <td class="stars">★ {{ row['rating'] }}/5</td>
-                <td>{{ '👍' if row['thumb'] == 'up' else ('👎' if row['thumb'] == 'down' else '—') }}</td>
-                <td>{{ row['comment'] if row['comment'] else '<i>(без текста)</i>' }}</td>
-                <td>
-                    <a href="/admin/feedback/delete/{{ row['id'] }}" 
-                       class="btn btn-delete" 
-                       onclick="return confirm('Удалить этот отзыв безвозвратно?');">
-                       Удалить
-                    </a>
-                </td>
-            </tr>
-            {% else %}
-            <tr><td colspan="7" style="text-align:center; color: #a0aec0;">Отзывов пока нет</td></tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</body>
-</html>"""
-    return await render_template_string(html, rows=rows)
-
-
-@app.route('/admin/feedback/export')
-async def export_feedback_csv():
-    """Выгрузка отзывов в CSV"""
-    if not check_auth(request.headers.get('Authorization')):
-        return get_auth_response()
-
-    if not db_pool:
-        return "База данных недоступна", 500
-
-    async with db_pool.acquire() as conn:
-        records = await conn.fetch("SELECT * FROM feedbacks ORDER BY id DESC")
-
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(['ID', 'Дата (UTC)', 'Категория', 'Оценка', 'Лайк/Дизлайк', 'Комментарий'])
-    
-    for r in records:
-        writer.writerow([r['id'], r['created_at'], r['category'], r['rating'], r['thumb'], r['comment']])
-
-    csv_bytes = output.getvalue().encode('utf-8-sig')
-    return Response(
-        csv_bytes,
-        mimetype='text/csv',
-        headers={'Content-Disposition': 'attachment; filename=feedbacks.csv'}
-    )
-
-
-@app.route('/admin/feedback/delete/<int:feedback_id>')
-async def delete_feedback(feedback_id):
-    """Удаление отзыва по ID"""
-    if not check_auth(request.headers.get('Authorization')):
-        return get_auth_response()
-
-    if db_pool:
-        async with db_pool.acquire() as conn:
-            await conn.execute("DELETE FROM feedbacks WHERE id = $1", feedback_id)
-            logger.info(f"Удален отзыв ID {feedback_id}")
-
-    return jsonify({"status": "deleted"}), 302, {'Location': '/admin/feedback'}
-
-
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
