@@ -3,13 +3,12 @@ import io
 import json
 import logging
 import asyncio
-import sqlite3
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as AsyncTimeoutError
 from zipfile import ZipFile
 import xml.etree.ElementTree as ET
 
-import aiosqlite
+import asyncpg
 import google.generativeai as genai
 from quart import Quart, request, jsonify, send_from_directory, render_template_string
 from pypdf import PdfReader
@@ -21,28 +20,41 @@ logger = logging.getLogger("LegalGuard-Backend")
 app = Quart(__name__, static_folder=".")
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 
 executor = ThreadPoolExecutor(max_workers=4)
-DB_PATH = "legalguard.db"
+db_pool = None
 
 
 async def init_db():
-    """Создание таблицы обратной связи при запуске сервера"""
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute('''
-            CREATE TABLE IF NOT EXISTS feedbacks (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                created_at TEXT NOT NULL,
-                category TEXT,
-                rating INTEGER,
-                thumb TEXT,
-                comment TEXT
-            )
-        ''')
-        await db.commit()
-    logger.info("База данных SQLite успешно инициализирована.")
+    """Инициализация пула соединений PostgreSQL и создание таблицы"""
+    global db_pool
+    if not DATABASE_URL:
+        logger.error("DATABASE_URL не задана в переменных окружения Render!")
+        return
+
+    # Render иногда выдает URI с 'postgres://', asyncpg требует 'postgresql://'
+    postgres_url = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+    try:
+        db_pool = await asyncpg.create_pool(postgres_url)
+        async with db_pool.acquire() as conn:
+            await conn.execute('''
+                CREATE TABLE IF NOT EXISTS feedbacks (
+                    id SERIAL PRIMARY KEY,
+                    created_at TEXT NOT NULL,
+                    category TEXT,
+                    rating INTEGER,
+                    thumb TEXT,
+                    comment TEXT
+                )
+            ''')
+        logger.info("База данных PostgreSQL успешно инициализирована.")
+    except Exception as e:
+        logger.error(f"Ошибка подключения к PostgreSQL: {e}")
 
 
 @app.before_serving
@@ -256,7 +268,7 @@ async def analyze_document():
 
 @app.route('/api/feedback', methods=['POST'])
 async def save_feedback():
-    """Сохранение обратной связи в БД + яркий вывод в логи Render"""
+    """Сохранение обратной связи в PostgreSQL + вывод в логи"""
     try:
         data = await request.get_json()
         category = data.get('category', 'quality')
@@ -265,15 +277,15 @@ async def save_feedback():
         comment = data.get('comment', '')
         created_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
 
-        # 1. Запись в SQLite
-        async with aiosqlite.connect(DB_PATH) as db:
-            await db.execute('''
-                INSERT INTO feedbacks (created_at, category, rating, thumb, comment)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (created_at, category, rating, thumb, comment))
-            await db.commit()
+        # 1. Запись в PostgreSQL ($1, $2... вместо ? в SQLite)
+        if db_pool:
+            async with db_pool.acquire() as conn:
+                await conn.execute('''
+                    INSERT INTO feedbacks (created_at, category, rating, thumb, comment)
+                    VALUES ($1, $2, $3, $4, $5)
+                ''', created_at, category, rating, thumb, comment)
 
-        # 2. Форматированный вывод в Логи Render (виден в консоли управления)
+        # 2. Форматированный вывод в Логи Render
         stars_str = '★' * rating + '☆' * (5 - rating) if rating > 0 else 'Без оценки'
         thumb_str = '👍 Полезно' if thumb == 'up' else ('👎 Замечание' if thumb == 'down' else 'Не указано')
         cat_str = '🔴 Технический баг' if category == 'tech_issue' else '🟢 Качество анализа'
@@ -297,11 +309,13 @@ async def save_feedback():
 
 @app.route('/admin/feedback')
 async def view_feedback_admin():
-    """Веб-страница для удобного просмотра всей обратной связи из БД"""
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = sqlite3.Row
-        async with db.execute("SELECT * FROM feedbacks ORDER BY id DESC") as cursor:
-            rows = await cursor.fetchall()
+    """Панель просмотра отзывов из PostgreSQL"""
+    rows = []
+    if db_pool:
+        async with db_pool.acquire() as conn:
+            records = await conn.fetch("SELECT * FROM feedbacks ORDER BY id DESC")
+            # Преобразуем asyncpg Record в словари для удобства Jinja2
+            rows = [dict(record) for record in records]
 
     html = '''
     <!DOCTYPE html>
