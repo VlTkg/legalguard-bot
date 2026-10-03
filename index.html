@@ -16,7 +16,8 @@
       color: #333;
     }
     .container {
-      max-width: 900px;
+      width: 95%;
+      max-width: 1100px;
       margin: 0 auto;
       background: #ffffff;
       padding: 30px;
@@ -30,7 +31,7 @@
       margin-bottom: 20px;
     }
     .form-group {
-      margin-bottom: 20px;
+      margin-bottom: 22px;
     }
     label {
       display: block;
@@ -38,7 +39,7 @@
       margin-bottom: 8px;
       color: #2d3748;
     }
-    textarea, select, input[type="file"] {
+    textarea, input[type="file"] {
       width: 100%;
       padding: 12px;
       border: 1px solid #cbd5e0;
@@ -47,20 +48,19 @@
       background-color: #fff;
     }
     textarea {
-      height: 150px;
+      height: 160px;
       resize: vertical;
       font-family: inherit;
     }
     
-    /* Кнопки типов договоров */
-    .category-buttons {
+    /* Кнопки переключателей (Категории и Юрисдикция) */
+    .button-selector {
       display: flex;
       flex-wrap: wrap;
       gap: 10px;
-      margin-bottom: 10px;
     }
-    .cat-btn {
-      padding: 8px 16px;
+    .option-btn {
+      padding: 9px 18px;
       border: 1px solid #cbd5e0;
       border-radius: 20px;
       background: #edf2f7;
@@ -70,7 +70,10 @@
       font-weight: 500;
       transition: all 0.2s ease;
     }
-    .cat-btn.active {
+    .option-btn:hover {
+      background: #e2e8f0;
+    }
+    .option-btn.active {
       background: #3182ce;
       color: #ffffff;
       border-color: #3182ce;
@@ -80,7 +83,7 @@
     .btn-group {
       display: flex;
       gap: 12px;
-      margin-top: 15px;
+      margin-top: 20px;
     }
     button.btn-submit {
       flex: 2;
@@ -205,42 +208,43 @@
   <h1>LegalGuard — Экспресс-анализ договоров</h1>
   
   <form id="analyze-form">
-    <!-- Выбор типа договора / категории -->
+    <!-- 1. Выбор типа договора / категории -->
     <div class="form-group">
       <label>Тип договора / Занятость:</label>
-      <div class="category-buttons" id="category-selector">
-        <button type="button" class="cat-btn active" data-cat="general">Общий договор</button>
-        <button type="button" class="cat-btn" data-cat="employment">Трудовой договор</button>
-        <button type="button" class="cat-btn" data-cat="gph">Договор ГПХ / Услуги</button>
-        <button type="button" class="cat-btn" data-cat="rent">Аренда</button>
-        <button type="button" class="cat-btn" data-cat="supply">Поставка / Купля-продажа</button>
+      <div class="button-selector" id="category-selector">
+        <button type="button" class="option-btn cat-btn active" data-value="general">Общий договор</button>
+        <button type="button" class="option-btn cat-btn" data-value="employment">Трудовой договор</button>
+        <button type="button" class="option-btn cat-btn" data-value="gph">Договор ГПХ / Услуги</button>
+        <button type="button" class="option-btn cat-btn" data-value="rent">Аренда</button>
+        <button type="button" class="option-btn cat-btn" data-value="supply">Поставка / Купля-продажа</button>
       </div>
       <input type="hidden" id="selected-category" value="general">
     </div>
 
-    <!-- Загрузка файла -->
+    <!-- 2. Выбор Юрисдикции (сразу под Занятостью) -->
+    <div class="form-group">
+      <label>Юрисдикция:</label>
+      <div class="button-selector" id="jurisdiction-selector">
+        <button type="button" class="option-btn jur-btn active" data-value="RU">Российская Федерация (РФ)</button>
+        <button type="button" class="option-btn jur-btn" data-value="KZ">Республика Казахстан (РК)</button>
+        <button type="button" class="option-btn jur-btn" data-value="BY">Республика Беларусь (РБ)</button>
+      </div>
+      <input type="hidden" id="selected-jurisdiction" value="RU">
+    </div>
+
+    <!-- 3. Загрузка файла -->
     <div class="form-group">
       <label>Загрузить файл (PDF, DOCX, ODT, TXT):</label>
       <input type="file" id="file-input" accept=".pdf,.docx,.doc,.odt,.txt">
     </div>
     
-    <!-- Поле текста -->
+    <!-- 4. Поле ввода текста -->
     <div class="form-group">
       <label>Или вставьте текст договора:</label>
       <textarea id="text-input" placeholder="Вставьте текст договора здесь..."></textarea>
     </div>
 
-    <!-- Юрисдикция -->
-    <div class="form-group">
-      <label>Юрисдикция:</label>
-      <select id="jurisdiction">
-        <option value="RU">Российская Федерация (РФ)</option>
-        <option value="KZ">Республика Казахстан (РК)</option>
-        <option value="BY">Республика Беларусь (РБ)</option>
-      </select>
-    </div>
-
-    <!-- Кнопки отправки и сброса -->
+    <!-- Кнопки управления -->
     <div class="btn-group">
       <button type="submit" class="btn-submit" id="submit-btn">Анализировать договор</button>
       <button type="button" class="btn-reset" id="reset-btn">Новый анализ</button>
@@ -293,12 +297,21 @@
   let selectedThumb = null;
   let feedbackCategory = 'quality';
 
-  // Переключение кнопок категорий (Тип договора)
+  // Переключение кнопок категории договора
   document.querySelectorAll('.cat-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
       e.target.classList.add('active');
-      document.getElementById('selected-category').value = e.target.getAttribute('data-cat');
+      document.getElementById('selected-category').value = e.target.getAttribute('data-value');
+    });
+  });
+
+  // Переключение кнопок юрисдикции
+  document.querySelectorAll('.jur-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      document.querySelectorAll('.jur-btn').forEach(b => b.classList.remove('active'));
+      e.target.classList.add('active');
+      document.getElementById('selected-jurisdiction').value = e.target.getAttribute('data-value');
     });
   });
 
@@ -310,6 +323,15 @@
     document.getElementById('result-section').style.display = 'none';
     document.getElementById('feedback-status').style.display = 'none';
     
+    // Сброс выбора категорий и юрисдикций на дефолтные
+    document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('.cat-btn[data-value="general"]').classList.add('active');
+    document.getElementById('selected-category').value = 'general';
+
+    document.querySelectorAll('.jur-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('.jur-btn[data-value="RU"]').classList.add('active');
+    document.getElementById('selected-jurisdiction').value = 'RU';
+
     // Сброс звезд и лайков
     selectedRating = 0;
     selectedThumb = null;
@@ -343,7 +365,7 @@
     document.getElementById('thumb-up').classList.remove('active');
   });
 
-  // Категория отзыва
+  // Переключение категории отзыва
   document.querySelectorAll('.fb-type-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       document.querySelectorAll('.fb-type-btn').forEach(b => b.classList.remove('active'));
@@ -372,7 +394,7 @@
       formData.append('file', fileInput.files[0]);
     }
     formData.append('text', document.getElementById('text-input').value);
-    formData.append('jurisdiction', document.getElementById('jurisdiction').value);
+    formData.append('jurisdiction', document.getElementById('selected-jurisdiction').value);
     formData.append('category', document.getElementById('selected-category').value);
 
     try {
