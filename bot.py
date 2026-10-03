@@ -13,6 +13,7 @@ import xml.etree.ElementTree as ET
 import asyncpg
 import google.generativeai as genai
 from quart import Quart, request, jsonify, send_from_directory, render_template_string, Response
+from quart_cors import cors
 from pypdf import PdfReader
 import docx
 
@@ -20,6 +21,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("LegalGuard-Backend")
 
 app = Quart(__name__, static_folder=".")
+app = cors(app, allow_origin="*")
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 DATABASE_URL = os.environ.get("DATABASE_URL")
@@ -407,61 +409,3 @@ async def view_feedback_admin():
                            class="btn btn-delete" 
                            onclick="return confirm('Удалить этот отзыв безвозвратно?');">
                            Удалить
-                        </a>
-                    </td>
-                </tr>
-                {% else %}
-                <tr><td colspan="7" style="text-align:center; color: #a0aec0;">Отзывов пока нет</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </body>
-    </html>
-    '''
-    return await render_template_string(html, rows=rows)
-
-
-@app.route('/admin/feedback/export')
-async def export_feedback_csv():
-    """Выгрузка отзывов в CSV"""
-    if not check_auth(request.headers.get('Authorization')):
-        return get_auth_response()
-
-    if not db_pool:
-        return "База данных недоступна", 500
-
-    async with db_pool.acquire() as conn:
-        records = await conn.fetch("SELECT * FROM feedbacks ORDER BY id DESC")
-
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(['ID', 'Дата (UTC)', 'Категория', 'Оценка', 'Лайк/Дизлайк', 'Комментарий'])
-    
-    for r in records:
-        writer.writerow([r['id'], r['created_at'], r['category'], r['rating'], r['thumb'], r['comment']])
-
-    csv_bytes = output.getvalue().encode('utf-8-sig')
-    return Response(
-        csv_bytes,
-        mimetype='text/csv',
-        headers={'Content-Disposition': 'attachment; filename=feedbacks.csv'}
-    )
-
-
-@app.route('/admin/feedback/delete/<int:feedback_id>')
-async def delete_feedback(feedback_id):
-    """Удаление отзыва по ID"""
-    if not check_auth(request.headers.get('Authorization')):
-        return get_auth_response()
-
-    if db_pool:
-        async with db_pool.acquire() as conn:
-            await conn.execute("DELETE FROM feedbacks WHERE id = $1", feedback_id)
-            logger.info(f"Удален отзыв ID {feedback_id}")
-
-    return jsonify({"status": "deleted"}), 302, {'Location': '/admin/feedback'}
-
-
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
