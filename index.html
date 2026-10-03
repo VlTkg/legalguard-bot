@@ -265,6 +265,14 @@
       border-color: #4a5568;
     }
 
+    .feedback-note {
+      font-size: 12px;
+      color: #718096;
+      line-height: 1.35;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+
     /* Отдельный стиль для кнопки отправки отзыва */
     .btn-feedback-submit {
       background-color: #38a169;
@@ -331,13 +339,13 @@
         </div>
 
         <div class="form-group">
-          <label>Или вставьте текст договора:</label>
+          <label>Или вставьте текстовый фрагмент договора:</label>
           <textarea id="text-input" placeholder="Вставьте текст договора здесь..."></textarea>
         </div>
       </div>
 
       <div class="btn-group">
-        <button type="submit" class="btn-submit" id="submit-btn">Анализировать договор</button>
+        <button type="submit" class="btn-submit" id="submit-btn">Анализировать</button>
         <button type="button" class="btn-reset" id="reset-btn">Новый анализ</button>
       </div>
     </form>
@@ -383,6 +391,7 @@
     </div>
 
     <div>
+      <p class="feedback-note">Ваш отзыв очень важен для нас! Он помогает улучшать качество проверки документов.</p>
       <button type="button" class="btn-feedback-submit" id="send-feedback-btn">Отправить отзыв</button>
       <p id="feedback-status" style="margin-top: 4px; font-weight: 600; font-size: 13px; display: none; text-align: center;"></p>
     </div>
@@ -482,7 +491,7 @@
     e.preventDefault();
     const btn = document.getElementById('submit-btn');
     btn.disabled = true;
-    btn.innerText = "Анализируем договор...";
+    btn.innerText = "Анализируем...";
 
     const formData = new FormData();
     const fileInput = document.getElementById('file-input');
@@ -521,7 +530,7 @@
       alert("Ошибка при вызове сервера: " + err);
     } finally {
       btn.disabled = false;
-      btn.innerText = "Анализировать договор";
+      btn.innerText = "Анализировать";
     }
   });
 
