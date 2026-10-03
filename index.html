@@ -24,7 +24,7 @@
     .app-layout {
       display: grid;
       grid-template-columns: 1fr 340px;
-      align-items: start; /* Выравнивание элементов по верхнему краю вместо stretch */
+      align-items: stretch; /* Растягивает колонки по высоте единого контейнера */
       gap: 20px;
       padding: 16px;
       min-height: 100vh;
@@ -50,10 +50,13 @@
       box-shadow: 0 4px 20px rgba(0,0,0,0.08);
       display: flex;
       flex-direction: column;
+      justify-content: space-between; /* Распределяет контент так, чтобы нижний край совпадал с первым блоком */
+    }
+
+    .sidebar-content {
+      display: flex;
+      flex-direction: column;
       gap: 14px;
-      height: fit-content;
-      position: sticky;
-      top: 16px;
     }
 
     h1 {
@@ -258,7 +261,7 @@
       cursor: pointer;
       font-weight: 600;
       width: 100%;
-      height: 42px; /* Четкая высота вместо растягивания */
+      height: 42px;
       transition: background-color 0.2s;
     }
 
@@ -331,38 +334,42 @@
 
   <!-- ПРАВАЯ КОЛОНКА (ОБРАТНАЯ СВЯЗЬ ДОСТУПНА ВСЕГДА) -->
   <div class="sidebar-card">
-    <h2>Обратная связь</h2>
+    <div class="sidebar-content">
+      <h2>Обратная связь</h2>
 
-    <div class="form-group">
-      <div class="section-label">Тип обращения:</div>
-      <div class="fb-type-selector">
-        <button type="button" class="fb-type-btn active" data-type="quality">Оценка анализа</button>
-        <button type="button" class="fb-type-btn" data-type="tech_issue">Баг / Ошибка</button>
+      <div class="form-group">
+        <div class="section-label">Тип обращения:</div>
+        <div class="fb-type-selector">
+          <button type="button" class="fb-type-btn active" data-type="quality">Оценка анализа</button>
+          <button type="button" class="fb-type-btn" data-type="tech_issue">Баг / Ошибка</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <div class="section-label">Оценка сервиса:</div>
+        <div class="stars" id="star-rating">
+          <span class="star" data-value="1">★</span>
+          <span class="star" data-value="2">★</span>
+          <span class="star" data-value="3">★</span>
+          <span class="star" data-value="4">★</span>
+          <span class="star" data-value="5">★</span>
+        </div>
+      </div>
+
+      <div class="thumbs">
+        <button type="button" class="thumb-btn" id="thumb-up">👍 Полезно</button>
+        <button type="button" class="thumb-btn" id="thumb-down">👎 Есть замечания</button>
+      </div>
+
+      <div class="form-group">
+        <textarea id="feedback-comment" style="height: 90px;" placeholder="Ваш отзыв или описание проблемы..."></textarea>
       </div>
     </div>
 
-    <div class="form-group">
-      <div class="section-label">Оценка сервиса:</div>
-      <div class="stars" id="star-rating">
-        <span class="star" data-value="1">★</span>
-        <span class="star" data-value="2">★</span>
-        <span class="star" data-value="3">★</span>
-        <span class="star" data-value="4">★</span>
-        <span class="star" data-value="5">★</span>
-      </div>
+    <div>
+      <button type="button" class="btn-feedback-submit" id="send-feedback-btn">Отправить отзыв</button>
+      <p id="feedback-status" style="margin-top: 4px; font-weight: 600; font-size: 13px; display: none; text-align: center;"></p>
     </div>
-
-    <div class="thumbs">
-      <button type="button" class="thumb-btn" id="thumb-up">👍 Полезно</button>
-      <button type="button" class="thumb-btn" id="thumb-down">👎 Есть замечания</button>
-    </div>
-
-    <div class="form-group">
-      <textarea id="feedback-comment" style="height: 90px;" placeholder="Ваш отзыв или описание проблемы..."></textarea>
-    </div>
-
-    <button type="button" class="btn-feedback-submit" id="send-feedback-btn">Отправить отзыв</button>
-    <p id="feedback-status" style="margin-top: 4px; font-weight: 600; font-size: 13px; display: none; text-align: center;"></p>
   </div>
 </div>
 
