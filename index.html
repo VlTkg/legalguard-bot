@@ -4,42 +4,79 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LegalGuard — Экспресс-анализ договоров</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
     * {
       box-sizing: border-box;
+      margin: 0;
+      padding: 0;
     }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      margin: 0;
-      padding: 12px;
       background-color: #f4f6f9;
       color: #333;
+      min-height: 100vh;
+      width: 100vw;
+      overflow-x: hidden;
     }
-    .container {
+
+    /* Двухколоночный макет во всё окно */
+    .app-layout {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 20px;
+      padding: 16px;
+      min-height: 100vh;
       width: 100%;
-      max-width: 1000px;
-      margin: 10px auto;
-      background: #ffffff;
-      padding: 20px;
-      border-radius: 12px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
     }
+
+    /* Левая колонка — Анализ */
+    .main-card {
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* Правая колонка — Обратная связь (всегда видима) */
+    .sidebar-card {
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      height: fit-content;
+      position: sticky;
+      top: 16px;
+    }
+
     h1 {
-      margin-top: 0;
       color: #1a202c;
       font-size: 22px;
-      margin-bottom: 14px;
     }
+
+    h2 {
+      font-size: 16px;
+      color: #2d3748;
+    }
+
     .form-group {
-      margin-bottom: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
     }
-    label {
-      display: block;
+
+    label, .section-label {
       font-weight: 600;
-      margin-bottom: 5px;
       color: #2d3748;
       font-size: 14px;
     }
+
     textarea, input[type="file"] {
       width: 100%;
       padding: 8px 10px;
@@ -48,18 +85,20 @@
       font-size: 14px;
       background-color: #fff;
     }
+
     textarea {
-      height: 100px;
+      height: 180px;
       resize: vertical;
       font-family: inherit;
     }
-    
-    /* Кнопки переключателей (Категории и Юрисдикция) */
+
+    /* Кнопки переключателей */
     .button-selector {
       display: flex;
       flex-wrap: wrap;
       gap: 6px;
     }
+
     .option-btn {
       padding: 6px 12px;
       border: 1px solid #cbd5e0;
@@ -71,21 +110,24 @@
       font-weight: 500;
       transition: all 0.2s ease;
     }
+
     .option-btn:hover {
       background: #e2e8f0;
     }
+
     .option-btn.active {
       background: #3182ce;
       color: #ffffff;
       border-color: #3182ce;
     }
 
-    /* Основные кнопки управления */
+    /* Основные кнопки */
     .btn-group {
       display: flex;
       gap: 10px;
-      margin-top: 14px;
+      margin-top: 6px;
     }
+
     button.btn-submit {
       flex: 2;
       background-color: #3182ce;
@@ -98,9 +140,11 @@
       font-weight: 600;
       transition: background-color 0.2s;
     }
+
     button.btn-submit:hover {
       background-color: #2b6cb0;
     }
+
     button.btn-reset {
       flex: 1;
       background-color: #e2e8f0;
@@ -113,17 +157,19 @@
       font-weight: 600;
       transition: background-color 0.2s;
     }
+
     button.btn-reset:hover {
       background-color: #cbd5e0;
     }
 
     /* Результаты */
     #result-section {
-      margin-top: 20px;
-      display: none; /* Скрыто по умолчанию */
+      margin-top: 10px;
+      display: none;
       border-top: 2px solid #edf2f7;
       padding-top: 15px;
     }
+
     .card {
       background: #f8fafc;
       border: 1px solid #e2e8f0;
@@ -133,44 +179,35 @@
       line-height: 1.4;
       font-size: 14px;
     }
+
     .risk-high { border-left: 5px solid #e53e3e; }
     .risk-medium { border-left: 5px solid #dd6b20; }
     .risk-low { border-left: 5px solid #38a169; }
 
-    /* Блок обратной связи */
-    .feedback-box {
-      margin-top: 20px;
-      padding: 14px;
-      background: #f7fafc;
-      border: 1px dashed #cbd5e0;
-      border-radius: 10px;
-    }
-    .feedback-box h3 {
-      margin-top: 0;
-      font-size: 16px;
-      color: #2d3748;
-      margin-bottom: 10px;
-    }
+    /* Элементы обратной связи */
     .stars {
       display: flex;
       gap: 6px;
       font-size: 22px;
       cursor: pointer;
-      margin-bottom: 10px;
     }
+
     .star {
       color: #cbd5e0;
       transition: color 0.2s;
     }
+
     .star.active {
       color: #f6ad55;
     }
+
     .thumbs {
       display: flex;
       gap: 10px;
-      margin-bottom: 10px;
     }
+
     .thumb-btn {
+      flex: 1;
       background: #fff;
       border: 1px solid #cbd5e0;
       padding: 6px 12px;
@@ -178,97 +215,114 @@
       cursor: pointer;
       font-size: 13px;
       font-weight: 500;
+      text-align: center;
     }
+
     .thumb-btn.active {
       background: #edf2f7;
       border-color: #3182ce;
       color: #3182ce;
     }
+
     .fb-type-selector {
       display: flex;
       gap: 8px;
-      margin-bottom: 10px;
     }
+
     .fb-type-btn {
-      padding: 5px 12px;
+      flex: 1;
+      padding: 6px 8px;
       border: 1px solid #cbd5e0;
       border-radius: 16px;
       background: #fff;
       cursor: pointer;
       font-size: 12px;
+      text-align: center;
     }
+
     .fb-type-btn.active {
       background: #4a5568;
       color: #fff;
       border-color: #4a5568;
     }
+
+    /* Адаптируемость для телефонов и Telegram */
+    @media (max-width: 850px) {
+      .app-layout {
+        grid-template-columns: 1fr;
+      }
+      .sidebar-card {
+        position: static;
+      }
+    }
   </style>
 </head>
 <body>
 
-<div class="container">
-  <h1>LegalGuard — Экспресс-анализ договоров</h1>
-  
-  <form id="analyze-form">
-    <!-- 1. Выбор типа договора / категории -->
-    <div class="form-group">
-      <label>Тип договора / Занятость:</label>
-      <div class="button-selector" id="category-selector">
-        <button type="button" class="option-btn cat-btn active" data-value="general">Общий договор</button>
-        <button type="button" class="option-btn cat-btn" data-value="employment">Трудовой договор</button>
-        <button type="button" class="option-btn cat-btn" data-value="gph">Договор ГПХ / Услуги</button>
-        <button type="button" class="option-btn cat-btn" data-value="rent">Аренда</button>
-        <button type="button" class="option-btn cat-btn" data-value="supply">Поставка / Купля-продажа</button>
+<div class="app-layout">
+  <!-- ЛЕВАЯ КОЛОНКА -->
+  <div class="main-card">
+    <h1>LegalGuard — Экспресс-анализ договоров</h1>
+
+    <form id="analyze-form">
+      <div class="form-group">
+        <label>Тип договора / Занятость:</label>
+        <div class="button-selector" id="category-selector">
+          <button type="button" class="option-btn cat-btn active" data-value="general">Общий договор</button>
+          <button type="button" class="option-btn cat-btn" data-value="employment">Трудовой договор</button>
+          <button type="button" class="option-btn cat-btn" data-value="gph">Договор ГПХ / Услуги</button>
+          <button type="button" class="option-btn cat-btn" data-value="rent">Аренда</button>
+          <button type="button" class="option-btn cat-btn" data-value="supply">Поставка / Купля-продажа</button>
+        </div>
+        <input type="hidden" id="selected-category" value="general">
       </div>
-      <input type="hidden" id="selected-category" value="general">
-    </div>
 
-    <!-- 2. Выбор Юрисдикции -->
-    <div class="form-group">
-      <label>Юрисдикция:</label>
-      <div class="button-selector" id="jurisdiction-selector">
-        <button type="button" class="option-btn jur-btn active" data-value="RU">Российская Федерация (РФ)</button>
-        <button type="button" class="option-btn jur-btn" data-value="KZ">Республика Казахстан (РК)</button>
-        <button type="button" class="option-btn jur-btn" data-value="BY">Республика Беларусь (РБ)</button>
+      <div class="form-group">
+        <label>Юрисдикция:</label>
+        <div class="button-selector" id="jurisdiction-selector">
+          <button type="button" class="option-btn jur-btn active" data-value="RU">Российская Федерация (РФ)</button>
+          <button type="button" class="option-btn jur-btn" data-value="KZ">Республика Казахстан (РК)</button>
+          <button type="button" class="option-btn jur-btn" data-value="BY">Республика Беларусь (РБ)</button>
+        </div>
+        <input type="hidden" id="selected-jurisdiction" value="RU">
       </div>
-      <input type="hidden" id="selected-jurisdiction" value="RU">
-    </div>
 
-    <!-- 3. Загрузка файла -->
+      <div class="form-group">
+        <label>Загрузить файл (PDF, DOCX, ODT, TXT):</label>
+        <input type="file" id="file-input" accept=".pdf,.docx,.doc,.odt,.txt">
+      </div>
+
+      <div class="form-group">
+        <label>Или вставьте текст договора:</label>
+        <textarea id="text-input" placeholder="Вставьте текст договора здесь..."></textarea>
+      </div>
+
+      <div class="btn-group">
+        <button type="submit" class="btn-submit" id="submit-btn">Анализировать договор</button>
+        <button type="button" class="btn-reset" id="reset-btn">Новый анализ</button>
+      </div>
+    </form>
+
+    <div id="result-section">
+      <h2 id="doc-title" style="margin-bottom: 10px;">Результат анализа</h2>
+      <div id="risks-list"></div>
+    </div>
+  </div>
+
+  <!-- ПРАВАЯ КОЛОНКА (ОБРАТНАЯ СВЯЗЬ ДОСТУПНА ВСЕГДА) -->
+  <div class="sidebar-card">
+    <h2>Обратная связь</h2>
+
     <div class="form-group">
-      <label>Загрузить файл (PDF, DOCX, ODT, TXT):</label>
-      <input type="file" id="file-input" accept=".pdf,.docx,.doc,.odt,.txt">
-    </div>
-    
-    <!-- 4. Поле ввода текста -->
-    <div class="form-group">
-      <label>Или вставьте текст договора:</label>
-      <textarea id="text-input" placeholder="Вставьте текст договора здесь..."></textarea>
-    </div>
-
-    <!-- Кнопки управления -->
-    <div class="btn-group">
-      <button type="submit" class="btn-submit" id="submit-btn">Анализировать договор</button>
-      <button type="button" class="btn-reset" id="reset-btn">Новый анализ</button>
-    </div>
-  </form>
-
-  <!-- Результаты анализа -->
-  <div id="result-section">
-    <h2 id="doc-title" style="margin-top: 0; font-size: 18px;">Результат анализа</h2>
-    <div id="risks-list"></div>
-
-    <!-- Блок Обратной Связи -->
-    <div class="feedback-box">
-      <h3>Обратная связь по результату</h3>
-      
-      <!-- Переключение типов отзыва -->
+      <div class="section-label">Тип обращения:</div>
       <div class="fb-type-selector">
-        <button type="button" class="fb-type-btn active" data-type="quality">Оценка юридического анализа</button>
-        <button type="button" class="fb-type-btn" data-type="tech_issue">Технический вопрос / Баг</button>
+        <button type="button" class="fb-type-btn active" data-type="quality">Оценка анализа</button>
+        <button type="button" class="fb-type-btn" data-type="tech_issue">Баг / Ошибка</button>
       </div>
+    </div>
 
-      <!-- Звезды -->
+    <div class="form-group">
+      <div class="section-label">Оценка сервиса:</div>
       <div class="stars" id="star-rating">
         <span class="star" data-value="1">★</span>
         <span class="star" data-value="2">★</span>
@@ -276,25 +330,29 @@
         <span class="star" data-value="4">★</span>
         <span class="star" data-value="5">★</span>
       </div>
-
-      <!-- Лайк / Дизлайк -->
-      <div class="thumbs">
-        <button type="button" class="thumb-btn" id="thumb-up">👍 Полезно</button>
-        <button type="button" class="thumb-btn" id="thumb-down">👎 Есть замечания</button>
-      </div>
-
-      <!-- Текст отзыва / описания проблемы -->
-      <div class="form-group">
-        <textarea id="feedback-comment" style="height: 60px;" placeholder="Ваш отзыв о качестве анализа договора..."></textarea>
-      </div>
-
-      <button type="button" class="btn-submit" id="send-feedback-btn" style="background-color: #38a169; width: auto; padding: 8px 18px; font-size: 14px;">Отправить отзыв</button>
-      <p id="feedback-status" style="margin-top: 8px; font-weight: 600; font-size: 13px; display: none;"></p>
     </div>
+
+    <div class="thumbs">
+      <button type="button" class="thumb-btn" id="thumb-up">👍 Полезно</button>
+      <button type="button" class="thumb-btn" id="thumb-down">👎 Есть замечания</button>
+    </div>
+
+    <div class="form-group">
+      <textarea id="feedback-comment" style="height: 90px;" placeholder="Ваш отзыв или описание проблемы..."></textarea>
+    </div>
+
+    <button type="button" class="btn-submit" id="send-feedback-btn" style="background-color: #38a169; width: 100%;">Отправить отзыв</button>
+    <p id="feedback-status" style="margin-top: 4px; font-weight: 600; font-size: 13px; display: none; text-align: center;"></p>
   </div>
 </div>
 
 <script>
+  // Инициализация Telegram WebApp
+  if (window.Telegram && window.Telegram.WebApp) {
+    window.Telegram.WebApp.ready();
+    window.Telegram.WebApp.expand();
+  }
+
   let selectedRating = 0;
   let selectedThumb = null;
   let feedbackCategory = 'quality';
@@ -317,19 +375,16 @@
     });
   });
 
-  // Кнопка Сброса / Нового анализа
+  // Кнопка Сброса
   document.getElementById('reset-btn').addEventListener('click', () => {
     document.getElementById('analyze-form').reset();
     document.getElementById('text-input').value = '';
     document.getElementById('file-input').value = '';
-    document.getElementById('feedback-status').style.display = 'none';
-    
-    // Скрытие и очистка секции результатов
+
     const resultSection = document.getElementById('result-section');
     resultSection.style.display = 'none';
     document.getElementById('risks-list').innerHTML = '';
 
-    // Сброс выбора категорий и юрисдикций на дефолтные
     document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
     document.querySelector('.cat-btn[data-value="general"]').classList.add('active');
     document.getElementById('selected-category').value = 'general';
@@ -337,14 +392,6 @@
     document.querySelectorAll('.jur-btn').forEach(b => b.classList.remove('active'));
     document.querySelector('.jur-btn[data-value="RU"]').classList.add('active');
     document.getElementById('selected-jurisdiction').value = 'RU';
-
-    // Сброс звезд и лайков
-    selectedRating = 0;
-    selectedThumb = null;
-    document.querySelectorAll('.star').forEach(s => s.classList.remove('active'));
-    document.getElementById('thumb-up').classList.remove('active');
-    document.getElementById('thumb-down').classList.remove('active');
-    document.getElementById('feedback-comment').value = '';
   });
 
   // Обработка звезд
@@ -360,29 +407,29 @@
 
   // Лайк / Дизлайк
   document.getElementById('thumb-up').addEventListener('click', () => {
-    selectedThumb = 'up';
-    document.getElementById('thumb-up').classList.add('active');
+    selectedThumb = selectedThumb === 'up' ? null : 'up';
+    document.getElementById('thumb-up').classList.toggle('active', selectedThumb === 'up');
     document.getElementById('thumb-down').classList.remove('active');
   });
 
   document.getElementById('thumb-down').addEventListener('click', () => {
-    selectedThumb = 'down';
-    document.getElementById('thumb-down').classList.add('active');
+    selectedThumb = selectedThumb === 'down' ? null : 'down';
+    document.getElementById('thumb-down').classList.toggle('active', selectedThumb === 'down');
     document.getElementById('thumb-up').classList.remove('active');
   });
 
-  // Переключение категории отзыва
+  // Переключение типа отзыва
   document.querySelectorAll('.fb-type-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       document.querySelectorAll('.fb-type-btn').forEach(b => b.classList.remove('active'));
       e.target.classList.add('active');
       feedbackCategory = e.target.getAttribute('data-type');
-      
+
       const commentBox = document.getElementById('feedback-comment');
       if (feedbackCategory === 'tech_issue') {
-        commentBox.placeholder = "Опишите проблему (например: долгая загрузка, ошибка чтения файла, сбой верстки)...";
+        commentBox.placeholder = "Опишите проблему (ошибка чтения файла, сбой и т.д.)...";
       } else {
-        commentBox.placeholder = "Ваш отзыв о качестве анализа договора...";
+        commentBox.placeholder = "Ваш отзыв или предложение...";
       }
     });
   });
@@ -406,7 +453,7 @@
     try {
       const resp = await fetch('/api/analyze', { method: 'POST', body: formData });
       const data = await resp.json();
-      
+
       document.getElementById('doc-title').innerText = data.doc_title || "Результат анализа";
       const risksContainer = document.getElementById('risks-list');
       risksContainer.innerHTML = '';
@@ -414,7 +461,7 @@
       if (data.risks && data.risks.length > 0) {
         data.risks.forEach(r => {
           const card = document.createElement('div');
-          card.className = `card risk-${r.level === 'high' ? 'high' : (r.level === 'med' ? 'medium' : 'low')}`;
+          card.className = `card risk-${r.level === 'high' ? 'high' : (r.level === 'med' || r.level === 'medium' ? 'medium' : 'low')}`;
           card.innerHTML = `
             <strong>Пункт договора / Риск:</strong> ${r.clause || 'Общее замечание'}<br>
             <strong>Комментарий юриста:</strong> ${r.comment}<br>
@@ -458,6 +505,14 @@
         statusText.style.color = '#276749';
         statusText.innerText = 'Спасибо! Ваш отзыв успешно отправлен.';
         statusText.style.display = 'block';
+
+        // Сброс формы обратной связи
+        document.getElementById('feedback-comment').value = '';
+        selectedRating = 0;
+        selectedThumb = null;
+        document.querySelectorAll('.star').forEach(s => s.classList.remove('active'));
+        document.getElementById('thumb-up').classList.remove('active');
+        document.getElementById('thumb-down').classList.remove('active');
       } else {
         throw new Error('Ошибка при сохранении');
       }
