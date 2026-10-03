@@ -297,6 +297,21 @@
       background-color: #2f855a;
     }
 
+    /* Стили для блока отладки ошибок */
+    #debug-log {
+      display: none;
+      background-color: #fff5f5;
+      color: #c53030;
+      border: 1px solid #feb2b2;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-family: monospace;
+      word-break: break-all;
+      white-space: pre-wrap;
+      margin-bottom: 14px;
+    }
+
     /* Адаптируемость для мобильных устройств */
     @media (max-width: 850px) {
       .app-layout {
@@ -316,6 +331,9 @@
   <!-- ЛЕВАЯ КОЛОНКА -->
   <div class="main-card">
     <h1>LegalGuard — Экспресс-анализ договоров</h1>
+
+    <!-- Блок отображения подробной ошибки (для отладки на телефоне) -->
+    <div id="debug-log"></div>
 
     <form id="analyze-form">
       <div class="form-fields">
@@ -410,6 +428,23 @@
   // Автоматическое определение хоста для корректной работы в Telegram WebApp
   const API_BASE_URL = window.location.origin;
 
+  // Вспомогательная функция вывода ошибок на экран
+  function showDebugError(msg) {
+    const debugBox = document.getElementById('debug-log');
+    if (debugBox) {
+      debugBox.style.display = 'block';
+      debugBox.innerText = msg;
+    }
+  }
+
+  function clearDebugError() {
+    const debugBox = document.getElementById('debug-log');
+    if (debugBox) {
+      debugBox.style.display = 'none';
+      debugBox.innerText = '';
+    }
+  }
+
   // Инициализация Telegram WebApp
   if (window.Telegram && window.Telegram.WebApp) {
     try {
@@ -444,6 +479,7 @@
 
   // Кнопка Сброса
   document.getElementById('reset-btn').addEventListener('click', () => {
+    clearDebugError();
     document.getElementById('analyze-form').reset();
     document.getElementById('text-input').value = '';
     document.getElementById('file-input').value = '';
@@ -504,6 +540,8 @@
   // Отправка формы анализа
   document.getElementById('analyze-form').addEventListener('submit', async (e) => {
     e.preventDefault();
+    clearDebugError();
+
     const btn = document.getElementById('submit-btn');
     btn.disabled = true;
     btn.innerText = "Анализируем...";
@@ -532,15 +570,16 @@
     formData.append('jurisdiction', document.getElementById('selected-jurisdiction').value);
     formData.append('category', document.getElementById('selected-category').value);
 
+    const targetUrl = `${API_BASE_URL}/api/analyze`;
+
     try {
-      // Использование API_BASE_URL гарантирует точный роутинг без сбоев CORS в WebApp
-      const resp = await fetch(`${API_BASE_URL}/api/analyze`, { 
+      const resp = await fetch(targetUrl, { 
         method: 'POST', 
         body: formData 
       });
 
       if (!resp.ok) {
-        throw new Error(`Сервер ответил с ошибкой (код: ${resp.status})`);
+        throw new Error(`Сервер ответил с ошибкой (код: ${resp.status} ${resp.statusText})`);
       }
 
       const data = await resp.json();
@@ -570,7 +609,14 @@
       resultSection.scrollIntoView({ behavior: 'smooth' });
 
     } catch (err) {
-      alert("Ошибка при отправке: " + err.message);
+      const errorMsg = `[Ошибка отправки запроса]:\n` +
+                       `Тип: ${err.name}\n` +
+                       `Сообщение: ${err.message}\n` +
+                       `URL: ${targetUrl}\n` +
+                       `Сеть: ${navigator.onLine ? 'Online' : 'Offline'}`;
+      
+      showDebugError(errorMsg);
+      alert("Ошибка при вызове сервера: " + err.message);
     } finally {
       btn.disabled = false;
       btn.innerText = "Анализировать";
