@@ -495,15 +495,32 @@
 
     const formData = new FormData();
     const fileInput = document.getElementById('file-input');
+
     if (fileInput.files.length > 0) {
-      formData.append('file', fileInput.files[0]);
+      const file = fileInput.files[0];
+      if (file.size === 0) {
+        alert("Выбранный файл пуст. Выберите другой файл.");
+        btn.disabled = false;
+        btn.innerText = "Анализировать";
+        return;
+      }
+      formData.append('file', file, file.name);
     }
-    formData.append('text', document.getElementById('text-input').value);
+
+    formData.append('text', document.getElementById('text-input').value || '');
     formData.append('jurisdiction', document.getElementById('selected-jurisdiction').value);
     formData.append('category', document.getElementById('selected-category').value);
 
     try {
-      const resp = await fetch('/api/analyze', { method: 'POST', body: formData });
+      const resp = await fetch('/api/analyze', { 
+        method: 'POST', 
+        body: formData 
+      });
+
+      if (!resp.ok) {
+        throw new Error(`Сервер ответил с ошибкой (код: ${resp.status})`);
+      }
+
       const data = await resp.json();
 
       document.getElementById('doc-title').innerText = data.doc_title || "Результат анализа";
@@ -527,7 +544,7 @@
 
       document.getElementById('result-section').style.display = 'block';
     } catch (err) {
-      alert("Ошибка при вызове сервера: " + err);
+      alert("Ошибка при отправке: " + err.message);
     } finally {
       btn.disabled = false;
       btn.innerText = "Анализировать";
