@@ -349,63 +349,119 @@ async def view_feedback_admin():
             records = await conn.fetch("SELECT * FROM feedbacks ORDER BY id DESC")
             rows = [dict(record) for record in records]
 
-    html = '''
-    <!DOCTYPE html>
-    <html lang="ru">
-    <head>
-        <meta charset="UTF-8">
-        <title>LegalGuard — Панель отзывов</title>
-        <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 20px; background: #f4f6f9; }
-            .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-            h1 { color: #1a202c; font-size: 20px; margin: 0; }
-            .btn { background: #3182ce; color: #fff; text-decoration: none; padding: 8px 16px; border-radius: 6px; font-size: 14px; font-weight: 500; display: inline-block; }
-            .btn:hover { background: #2b6cb0; }
-            .btn-delete { background: #e53e3e; padding: 4px 10px; font-size: 12px; }
-            .btn-delete:hover { background: #c53030; }
-            table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
-            th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #edf2f7; font-size: 14px; }
-            th { background: #2d3748; color: #fff; font-weight: 600; }
-            tr:hover { background: #f8fafc; }
-            .stars { color: #f6ad55; font-weight: bold; }
-            .badge-tech { background: #fed7d7; color: #9b2c2c; padding: 3px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; }
-            .badge-quality { background: #c6f6d5; color: #22543d; padding: 3px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; }
-        </style>
-    </head>
-    <body>
-        <div class="header">
-            <h1>Реестр обратной связи пользователей</h1>
-            <a href="/admin/feedback/export" class="btn">📥 Скачать CSV</a>
-        </div>
-        <table>
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Дата (UTC)</th>
-                    <th>Тип</th>
-                    <th>Оценка</th>
-                    <th>Лайк/Дизлайк</th>
-                    <th>Текст комментария</th>
-                    <th>Действие</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for row in rows %}
-                <tr>
-                    <td>{{ row['id'] }}</td>
-                    <td>{{ row['created_at'] }}</td>
-                    <td>
-                        {% if row['category'] == 'tech_issue' %}
-                            <span class="badge-tech">Баг / Тех вопр</span>
-                        {% else %}
-                            <span class="badge-quality">Качество</span>
-                        {% endif %}
-                    </td>
-                    <td class="stars">★ {{ row['rating'] }}/5</td>
-                    <td>{{ '👍' if row['thumb'] == 'up' else ('👎' if row['thumb'] == 'down' else '—') }}</td>
-                    <td>{{ row['comment'] if row['comment'] else '<i>(без текста)</i>' }}</td>
-                    <td>
-                        <a href="/admin/feedback/delete/{{ row['id'] }}" 
-                           class="btn btn-delete" 
-                           onclick="return confirm('Удалить этот отзыв безвозвратно?');">
-                           Удалить
+    html = """<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>LegalGuard — Панель отзывов</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 20px; background: #f4f6f9; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        h1 { color: #1a202c; font-size: 20px; margin: 0; }
+        .btn { background: #3182ce; color: #fff; text-decoration: none; padding: 8px 16px; border-radius: 6px; font-size: 14px; font-weight: 500; display: inline-block; }
+        .btn:hover { background: #2b6cb0; }
+        .btn-delete { background: #e53e3e; padding: 4px 10px; font-size: 12px; }
+        .btn-delete:hover { background: #c53030; }
+        table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #edf2f7; font-size: 14px; }
+        th { background: #2d3748; color: #fff; font-weight: 600; }
+        tr:hover { background: #f8fafc; }
+        .stars { color: #f6ad55; font-weight: bold; }
+        .badge-tech { background: #fed7d7; color: #9b2c2c; padding: 3px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+        .badge-quality { background: #c6f6d5; color: #22543d; padding: 3px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Реестр обратной связи пользователей</h1>
+        <a href="/admin/feedback/export" class="btn">📥 Скачать CSV</a>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Дата (UTC)</th>
+                <th>Тип</th>
+                <th>Оценка</th>
+                <th>Лайк/Дизлайк</th>
+                <th>Текст комментария</th>
+                <th>Действие</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+            <tr>
+                <td>{{ row['id'] }}</td>
+                <td>{{ row['created_at'] }}</td>
+                <td>
+                    {% if row['category'] == 'tech_issue' %}
+                        <span class="badge-tech">Баг / Тех вопр</span>
+                    {% else %}
+                        <span class="badge-quality">Качество</span>
+                    {% endif %}
+                </td>
+                <td class="stars">★ {{ row['rating'] }}/5</td>
+                <td>{{ '👍' if row['thumb'] == 'up' else ('👎' if row['thumb'] == 'down' else '—') }}</td>
+                <td>{{ row['comment'] if row['comment'] else '<i>(без текста)</i>' }}</td>
+                <td>
+                    <a href="/admin/feedback/delete/{{ row['id'] }}" 
+                       class="btn btn-delete" 
+                       onclick="return confirm('Удалить этот отзыв безвозвратно?');">
+                       Удалить
+                    </a>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7" style="text-align:center; color: #a0aec0;">Отзывов пока нет</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>"""
+    return await render_template_string(html, rows=rows)
+
+
+@app.route('/admin/feedback/export')
+async def export_feedback_csv():
+    """Выгрузка отзывов в CSV"""
+    if not check_auth(request.headers.get('Authorization')):
+        return get_auth_response()
+
+    if not db_pool:
+        return "База данных недоступна", 500
+
+    async with db_pool.acquire() as conn:
+        records = await conn.fetch("SELECT * FROM feedbacks ORDER BY id DESC")
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['ID', 'Дата (UTC)', 'Категория', 'Оценка', 'Лайк/Дизлайк', 'Комментарий'])
+    
+    for r in records:
+        writer.writerow([r['id'], r['created_at'], r['category'], r['rating'], r['thumb'], r['comment']])
+
+    csv_bytes = output.getvalue().encode('utf-8-sig')
+    return Response(
+        csv_bytes,
+        mimetype='text/csv',
+        headers={'Content-Disposition': 'attachment; filename=feedbacks.csv'}
+    )
+
+
+@app.route('/admin/feedback/delete/<int:feedback_id>')
+async def delete_feedback(feedback_id):
+    """Удаление отзыва по ID"""
+    if not check_auth(request.headers.get('Authorization')):
+        return get_auth_response()
+
+    if db_pool:
+        async with db_pool.acquire() as conn:
+            await conn.execute("DELETE FROM feedbacks WHERE id = $1", feedback_id)
+            logger.info(f"Удален отзыв ID {feedback_id}")
+
+    return jsonify({"status": "deleted"}), 302, {'Location': '/admin/feedback'}
+
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
