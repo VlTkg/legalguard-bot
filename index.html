@@ -3,82 +3,262 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LegalGuard Bot</title>
+  <title>LegalGuard — Экспресс-анализ договоров</title>
   <style>
+    * {
+      box-sizing: border-box;
+    }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      margin: 0; padding: 20px; background-color: #f4f6f9; color: #333;
+      margin: 0;
+      padding: 20px;
+      background-color: #f4f6f9;
+      color: #333;
     }
-    .container { max-width: 800px; margin: 0 auto; background: #fff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
-    h1 { margin-top: 0; color: #1a202c; font-size: 24px; }
-    .form-group { margin-bottom: 15px; }
-    label { display: block; font-weight: 600; margin-bottom: 5px; }
-    textarea, select, input[type="file"] { width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 6px; box-sizing: border-box; }
-    textarea { height: 120px; resize: vertical; }
-    button.btn-submit { background-color: #3182ce; color: #fff; border: none; padding: 12px 20px; font-size: 16px; border-radius: 6px; cursor: pointer; width: 100%; font-weight: 600; }
-    button.btn-submit:hover { background-color: #2b6cb0; }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: #ffffff;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }
+    h1 {
+      margin-top: 0;
+      color: #1a202c;
+      font-size: 26px;
+      margin-bottom: 20px;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #2d3748;
+    }
+    textarea, select, input[type="file"] {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #cbd5e0;
+      border-radius: 8px;
+      font-size: 15px;
+      background-color: #fff;
+    }
+    textarea {
+      height: 150px;
+      resize: vertical;
+      font-family: inherit;
+    }
     
-    /* Result Section */
-    #result-section { margin-top: 25px; display: none; }
-    .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
-    .risk-high { border-left: 4px solid #e53e3e; }
-    .risk-medium { border-left: 4px solid #dd6b20; }
-    .risk-low { border-left: 4px solid #38a169; }
-    
-    /* Feedback Section */
-    .feedback-box { margin-top: 30px; padding: 20px; background: #f7fafc; border: 1px dashed #cbd5e0; border-radius: 8px; }
-    .feedback-box h3 { margin-top: 0; font-size: 18px; color: #2d3748; }
-    .stars { display: flex; gap: 5px; font-size: 24px; cursor: pointer; margin-bottom: 10px; }
-    .star { color: #cbd5e0; transition: color 0.2s; }
-    .star.active { color: #f6ad55; }
-    .thumbs { display: flex; gap: 15px; margin-bottom: 15px; }
-    .thumb-btn { background: #edf2f7; border: 1px solid #cbd5e0; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-size: 18px; }
-    .thumb-btn.active { background: #e2e8f0; border-color: #4a5568; }
-    .fb-type-selector { display: flex; gap: 10px; margin-bottom: 10px; }
-    .fb-type-btn { padding: 6px 12px; border: 1px solid #cbd5e0; border-radius: 20px; background: #fff; cursor: pointer; font-size: 13px; }
-    .fb-type-btn.active { background: #3182ce; color: #fff; border-color: #3182ce; }
+    /* Кнопки типов договоров */
+    .category-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .cat-btn {
+      padding: 8px 16px;
+      border: 1px solid #cbd5e0;
+      border-radius: 20px;
+      background: #edf2f7;
+      color: #4a5568;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+    .cat-btn.active {
+      background: #3182ce;
+      color: #ffffff;
+      border-color: #3182ce;
+    }
+
+    /* Основные кнопки управления */
+    .btn-group {
+      display: flex;
+      gap: 12px;
+      margin-top: 15px;
+    }
+    button.btn-submit {
+      flex: 2;
+      background-color: #3182ce;
+      color: #fff;
+      border: none;
+      padding: 14px 20px;
+      font-size: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background-color 0.2s;
+    }
+    button.btn-submit:hover {
+      background-color: #2b6cb0;
+    }
+    button.btn-reset {
+      flex: 1;
+      background-color: #e2e8f0;
+      color: #4a5568;
+      border: none;
+      padding: 14px 20px;
+      font-size: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background-color 0.2s;
+    }
+    button.btn-reset:hover {
+      background-color: #cbd5e0;
+    }
+
+    /* Результаты */
+    #result-section {
+      margin-top: 30px;
+      display: none;
+      border-top: 2px solid #edf2f7;
+      padding-top: 25px;
+    }
+    .card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 18px;
+      margin-bottom: 15px;
+      line-height: 1.5;
+    }
+    .risk-high { border-left: 5px solid #e53e3e; }
+    .risk-medium { border-left: 5px solid #dd6b20; }
+    .risk-low { border-left: 5px solid #38a169; }
+
+    /* Блок обратной связи */
+    .feedback-box {
+      margin-top: 35px;
+      padding: 22px;
+      background: #f7fafc;
+      border: 1px dashed #cbd5e0;
+      border-radius: 10px;
+    }
+    .feedback-box h3 {
+      margin-top: 0;
+      font-size: 18px;
+      color: #2d3748;
+      margin-bottom: 15px;
+    }
+    .stars {
+      display: flex;
+      gap: 8px;
+      font-size: 28px;
+      cursor: pointer;
+      margin-bottom: 15px;
+    }
+    .star {
+      color: #cbd5e0;
+      transition: color 0.2s;
+    }
+    .star.active {
+      color: #f6ad55;
+    }
+    .thumbs {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 15px;
+    }
+    .thumb-btn {
+      background: #fff;
+      border: 1px solid #cbd5e0;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 15px;
+      font-weight: 500;
+    }
+    .thumb-btn.active {
+      background: #edf2f7;
+      border-color: #3182ce;
+      color: #3182ce;
+    }
+    .fb-type-selector {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    .fb-type-btn {
+      padding: 6px 14px;
+      border: 1px solid #cbd5e0;
+      border-radius: 20px;
+      background: #fff;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .fb-type-btn.active {
+      background: #4a5568;
+      color: #fff;
+      border-color: #4a5568;
+    }
   </style>
 </head>
 <body>
 
 <div class="container">
-  <h1>LegalGuard — Анализ договоров</h1>
+  <h1>LegalGuard — Экспресс-анализ договоров</h1>
   
   <form id="analyze-form">
+    <!-- Выбор типа договора / категории -->
+    <div class="form-group">
+      <label>Тип договора / Занятость:</label>
+      <div class="category-buttons" id="category-selector">
+        <button type="button" class="cat-btn active" data-cat="general">Общий договор</button>
+        <button type="button" class="cat-btn" data-cat="employment">Трудовой договор</button>
+        <button type="button" class="cat-btn" data-cat="gph">Договор ГПХ / Услуги</button>
+        <button type="button" class="cat-btn" data-cat="rent">Аренда</button>
+        <button type="button" class="cat-btn" data-cat="supply">Поставка / Купля-продажа</button>
+      </div>
+      <input type="hidden" id="selected-category" value="general">
+    </div>
+
+    <!-- Загрузка файла -->
     <div class="form-group">
       <label>Загрузить файл (PDF, DOCX, ODT, TXT):</label>
       <input type="file" id="file-input" accept=".pdf,.docx,.doc,.odt,.txt">
     </div>
     
+    <!-- Поле текста -->
     <div class="form-group">
       <label>Или вставьте текст договора:</label>
-      <textarea id="text-input" placeholder="Вставьте текст..."></textarea>
+      <textarea id="text-input" placeholder="Вставьте текст договора здесь..."></textarea>
     </div>
 
+    <!-- Юрисдикция -->
     <div class="form-group">
       <label>Юрисдикция:</label>
       <select id="jurisdiction">
-        <option value="RU">Россия (РФ)</option>
-        <option value="KZ">Казахстан</option>
-        <option value="BY">Беларусь</option>
+        <option value="RU">Российская Федерация (РФ)</option>
+        <option value="KZ">Республика Казахстан (РК)</option>
+        <option value="BY">Республика Беларусь (РБ)</option>
       </select>
     </div>
 
-    <button type="submit" class="btn-submit" id="submit-btn">Анализировать договор</button>
+    <!-- Кнопки отправки и сброса -->
+    <div class="btn-group">
+      <button type="submit" class="btn-submit" id="submit-btn">Анализировать договор</button>
+      <button type="button" class="btn-reset" id="reset-btn">Новый анализ</button>
+    </div>
   </form>
 
-  <!-- Результаты -->
+  <!-- Результаты анализа -->
   <div id="result-section">
-    <h2 id="doc-title">Результат анализа</h2>
+    <h2 id="doc-title" style="margin-top: 0; font-size: 22px;">Результат анализа</h2>
     <div id="risks-list"></div>
 
     <!-- Блок Обратной Связи -->
     <div class="feedback-box">
-      <h3>Оцените качество анализа и работу сервиса</h3>
+      <h3>Обратная связь по результату</h3>
       
-      <!-- Выбор типа обратной связи -->
+      <!-- Переключение типов отзыва -->
       <div class="fb-type-selector">
-        <button type="button" class="fb-type-btn active" data-type="quality">Оценка качества</button>
+        <button type="button" class="fb-type-btn active" data-type="quality">Оценка юридического анализа</button>
         <button type="button" class="fb-type-btn" data-type="tech_issue">Технический вопрос / Баг</button>
       </div>
 
@@ -91,19 +271,19 @@
         <span class="star" data-value="5">★</span>
       </div>
 
-      <!-- Большой палец -->
+      <!-- Лайк / Дизлайк -->
       <div class="thumbs">
         <button type="button" class="thumb-btn" id="thumb-up">👍 Полезно</button>
-        <button type="button" class="thumb-btn" id="thumb-down">👎 Есть ошибки</button>
+        <button type="button" class="thumb-btn" id="thumb-down">👎 Есть замечания</button>
       </div>
 
-      <!-- Текстовый отзыв / Техническая проблема -->
+      <!-- Текст отзыва / описания проблемы -->
       <div class="form-group">
-        <textarea id="feedback-comment" placeholder="Ваш отзыв или описание технической проблемы..."></textarea>
+        <textarea id="feedback-comment" style="height: 90px;" placeholder="Ваш отзыв или описание технической проблемы..."></textarea>
       </div>
 
-      <button type="button" class="btn-submit" id="send-feedback-btn" style="background-color: #38a169;">Отправить отзыв</button>
-      <p id="feedback-status" style="margin-top: 10px; font-weight: 600; display: none;"></p>
+      <button type="button" class="btn-submit" id="send-feedback-btn" style="background-color: #38a169; width: auto; padding: 10px 24px;">Отправить отзыв</button>
+      <p id="feedback-status" style="margin-top: 12px; font-weight: 600; display: none;"></p>
     </div>
   </div>
 </div>
@@ -113,7 +293,33 @@
   let selectedThumb = null;
   let feedbackCategory = 'quality';
 
-  // Обработка клика по звездам
+  // Переключение кнопок категорий (Тип договора)
+  document.querySelectorAll('.cat-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+      e.target.classList.add('active');
+      document.getElementById('selected-category').value = e.target.getAttribute('data-cat');
+    });
+  });
+
+  // Кнопка Сброса / Нового анализа
+  document.getElementById('reset-btn').addEventListener('click', () => {
+    document.getElementById('analyze-form').reset();
+    document.getElementById('text-input').value = '';
+    document.getElementById('file-input').value = '';
+    document.getElementById('result-section').style.display = 'none';
+    document.getElementById('feedback-status').style.display = 'none';
+    
+    // Сброс звезд и лайков
+    selectedRating = 0;
+    selectedThumb = null;
+    document.querySelectorAll('.star').forEach(s => s.classList.remove('active'));
+    document.getElementById('thumb-up').classList.remove('active');
+    document.getElementById('thumb-down').classList.remove('active');
+    document.getElementById('feedback-comment').value = '';
+  });
+
+  // Обработка звезд
   document.querySelectorAll('#star-rating .star').forEach(star => {
     star.addEventListener('click', (e) => {
       selectedRating = parseInt(e.target.getAttribute('data-value'));
@@ -124,7 +330,7 @@
     });
   });
 
-  // Обработка лайк/дизлайк
+  // Лайк / Дизлайк
   document.getElementById('thumb-up').addEventListener('click', () => {
     selectedThumb = 'up';
     document.getElementById('thumb-up').classList.add('active');
@@ -137,7 +343,7 @@
     document.getElementById('thumb-up').classList.remove('active');
   });
 
-  // Выбор типа обратной связи (Качество / Технический баг)
+  // Категория отзыва
   document.querySelectorAll('.fb-type-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       document.querySelectorAll('.fb-type-btn').forEach(b => b.classList.remove('active'));
@@ -146,9 +352,9 @@
       
       const commentBox = document.getElementById('feedback-comment');
       if (feedbackCategory === 'tech_issue') {
-        commentBox.placeholder = "Опишите проблему (например: долго грузит, файл ODT не открывается, сбой в интерфейсе)...";
+        commentBox.placeholder = "Опишите проблему (например: долгая загрузка, ошибка чтения файла, сбой верстки)...";
       } else {
-        commentBox.placeholder = "Ваш отзыв о качестве проверки...";
+        commentBox.placeholder = "Ваш отзыв о качестве анализа договора...";
       }
     });
   });
@@ -167,6 +373,7 @@
     }
     formData.append('text', document.getElementById('text-input').value);
     formData.append('jurisdiction', document.getElementById('jurisdiction').value);
+    formData.append('category', document.getElementById('selected-category').value);
 
     try {
       const resp = await fetch('/api/analyze', { method: 'POST', body: formData });
@@ -176,22 +383,24 @@
       const risksContainer = document.getElementById('risks-list');
       risksContainer.innerHTML = '';
 
-      if (data.risks) {
+      if (data.risks && data.risks.length > 0) {
         data.risks.forEach(r => {
           const card = document.createElement('div');
           card.className = `card risk-${r.level === 'high' ? 'high' : (r.level === 'med' ? 'medium' : 'low')}`;
           card.innerHTML = `
-            <strong>Пункт:</strong> ${r.clause || 'Общий риск'}<br>
-            <strong>Комментарий:</strong> ${r.comment}<br>
-            ${r.proposed ? `<strong>Предложение:</strong> ${r.proposed}` : ''}
+            <strong>Пункт договора / Риск:</strong> ${r.clause || 'Общее замечание'}<br>
+            <strong>Комментарий юриста:</strong> ${r.comment}<br>
+            ${r.proposed ? `<br><strong>Рекомендуемая правка:</strong> ${r.proposed}` : ''}
           `;
           risksContainer.appendChild(card);
         });
+      } else {
+        risksContainer.innerHTML = '<div class="card">Существенных рисков не обнаружено.</div>';
       }
 
       document.getElementById('result-section').style.display = 'block';
     } catch (err) {
-      alert("Ошибка запроса: " + err);
+      alert("Ошибка при вызове сервера: " + err);
     } finally {
       btn.disabled = false;
       btn.innerText = "Анализировать договор";
@@ -218,14 +427,14 @@
       });
 
       if (resp.ok) {
-        statusText.style.color = 'green';
+        statusText.style.color = '#276749';
         statusText.innerText = 'Спасибо! Ваш отзыв успешно отправлен.';
         statusText.style.display = 'block';
       } else {
-        throw new Error('Ошибка сохранения');
+        throw new Error('Ошибка при сохранении');
       }
     } catch (e) {
-      statusText.style.color = 'red';
+      statusText.style.color = '#c53030';
       statusText.innerText = 'Не удалось отправить отзыв. Попробуйте еще раз.';
       statusText.style.display = 'block';
     }
