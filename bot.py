@@ -188,7 +188,7 @@ async def analyze_document():
         
         # Если список пуст, используем стандартные имена как запасной вариант
         if not candidate_models:
-            candidate_models = ['gemini-3.8-flash', 'gemini-1.5-flash']
+            candidate_models = ['gemini-2.0-flash', 'gemini-1.5-flash']
 
         for model_name in candidate_models:
             try:
@@ -230,6 +230,36 @@ async def analyze_document():
                 "proposed": ""
             }]
         }), 200
+
+
+@app.route('/api/feedback', methods=['POST'])
+async def save_feedback():
+    """Эндпоинт приема и сохранения обратной связи от пользователей"""
+    try:
+        data = await request.get_json()
+        category = data.get('category', 'quality')
+        rating = data.get('rating', 0)
+        thumb = data.get('thumb', None)
+        comment = data.get('comment', '')
+
+        feedback_entry = {
+            "category": category,
+            "rating": rating,
+            "thumb": thumb,
+            "comment": comment
+        }
+
+        # Логирование отзыва в консоль сервера (Render)
+        logger.info(f"[FEEDBACK RECEIVED] {json.dumps(feedback_entry, ensure_ascii=False)}")
+
+        # Запись отзыва в локальный файл feedback.log
+        with open("feedback.log", "a", encoding="utf-8") as f:
+            f.write(json.dumps(feedback_entry, ensure_ascii=False) + "\n")
+
+        return jsonify({"status": "success", "message": "Feedback saved"}), 200
+    except Exception as e:
+        logger.error(f"Ошибка сохранения отзыва: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 if __name__ == '__main__':
