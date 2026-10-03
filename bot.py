@@ -3,6 +3,8 @@ import io
 import json
 import logging
 import asyncio
+import base64
+import csv
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as AsyncTimeoutError
 from zipfile import ZipFile
@@ -10,7 +12,7 @@ import xml.etree.ElementTree as ET
 
 import asyncpg
 import google.generativeai as genai
-from quart import Quart, request, jsonify, send_from_directory, render_template_string
+from quart import Quart, request, jsonify, send_from_directory, render_template_string, Response
 from pypdf import PdfReader
 import docx
 
@@ -22,11 +24,38 @@ app = Quart(__name__, static_folder=".")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
+# Парольная защита для страницы админки
+ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "LegalGuard2026!")
+
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 
 executor = ThreadPoolExecutor(max_workers=4)
 db_pool = None
+
+
+def check_auth(auth_header):
+    """Проверка логина и пароля администратора"""
+    if not auth_header:
+        return False
+    try:
+        auth_type, encoded_credentials = auth_header.split(' ', 1)
+        if auth_type.lower() == 'basic':
+            decoded = base64.b64decode(encoded_credentials).decode('utf-8')
+            username, password = decoded.split(':', 1)
+            return username == ADMIN_USERNAME and password == ADMIN_PASSWORD
+    except Exception:
+        return False
+    return False
+
+
+def get_auth_response():
+    """Ответ для запроса ввода логина/пароля в браузер"""
+    response = jsonify({"status": "unauthorized", "message": "Требуется авторизация"})
+    response.status_code = 401
+    response.headers['WWW-Authenticate'] = 'Basic realm="LegalGuard Admin Panel"'
+    return response
 
 
 async def init_db():
@@ -36,7 +65,6 @@ async def init_db():
         logger.error("DATABASE_URL не задана в переменных окружения Render!")
         return
 
-    # Render иногда выдает URI с 'postgres://', asyncpg требует 'postgresql://'
     postgres_url = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
     try:
@@ -277,7 +305,7 @@ async def save_feedback():
         comment = data.get('comment', '')
         created_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
 
-        # 1. Запись в PostgreSQL ($1, $2... вместо ? в SQLite)
+        # 1. Запись в PostgreSQL
         if db_pool:
             async with db_pool.acquire() as conn:
                 await conn.execute('''
@@ -285,7 +313,7 @@ async def save_feedback():
                     VALUES ($1, $2, $3, $4, $5)
                 ''', created_at, category, rating, thumb, comment)
 
-        # 2. Форматированный вывод в Логи Render
+        # 2. Вывод отзыва только в Логи Render
         stars_str = '★' * rating + '☆' * (5 - rating) if rating > 0 else 'Без оценки'
         thumb_str = '👍 Полезно' if thumb == 'up' else ('👎 Замечание' if thumb == 'down' else 'Не указано')
         cat_str = '🔴 Технический баг' if category == 'tech_issue' else '🟢 Качество анализа'
@@ -309,12 +337,14 @@ async def save_feedback():
 
 @app.route('/admin/feedback')
 async def view_feedback_admin():
-    """Панель просмотра отзывов из PostgreSQL"""
+    """Панель управления отзывами с авторизацией"""
+    if not check_auth(request.headers.get('Authorization')):
+        return get_auth_response()
+
     rows = []
     if db_pool:
         async with db_pool.acquire() as conn:
             records = await conn.fetch("SELECT * FROM feedbacks ORDER BY id DESC")
-            # Преобразуем asyncpg Record в словари для удобства Jinja2
             rows = [dict(record) for record in records]
 
     html = '''
@@ -325,7 +355,12 @@ async def view_feedback_admin():
         <title>LegalGuard — Панель отзывов</title>
         <style>
             body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 20px; background: #f4f6f9; }
-            h1 { color: #1a202c; font-size: 20px; margin-bottom: 20px; }
+            .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+            h1 { color: #1a202c; font-size: 20px; margin: 0; }
+            .btn { background: #3182ce; color: #fff; text-decoration: none; padding: 8px 16px; border-radius: 6px; font-size: 14px; font-weight: 500; display: inline-block; }
+            .btn:hover { background: #2b6cb0; }
+            .btn-delete { background: #e53e3e; padding: 4px 10px; font-size: 12px; }
+            .btn-delete:hover { background: #c53030; }
             table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
             th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #edf2f7; font-size: 14px; }
             th { background: #2d3748; color: #fff; font-weight: 600; }
@@ -336,7 +371,10 @@ async def view_feedback_admin():
         </style>
     </head>
     <body>
-        <h1>Реестр обратной связи пользователей</h1>
+        <div class="header">
+            <h1>Реестр обратной связи пользователей</h1>
+            <a href="/admin/feedback/export" class="btn">📥 Скачать CSV</a>
+        </div>
         <table>
             <thead>
                 <tr>
@@ -346,6 +384,7 @@ async def view_feedback_admin():
                     <th>Оценка</th>
                     <th>Лайк/Дизлайк</th>
                     <th>Текст комментария</th>
+                    <th>Действие</th>
                 </tr>
             </thead>
             <tbody>
@@ -363,9 +402,16 @@ async def view_feedback_admin():
                     <td class="stars">★ {{ row['rating'] }}/5</td>
                     <td>{{ '👍' if row['thumb'] == 'up' else ('👎' if row['thumb'] == 'down' else '—') }}</td>
                     <td>{{ row['comment'] if row['comment'] else '<i>(без текста)</i>' }}</td>
+                    <td>
+                        <a href="/admin/feedback/delete/{{ row['id'] }}" 
+                           class="btn btn-delete" 
+                           onclick="return confirm('Удалить этот отзыв безвозвратно?');">
+                           Удалить
+                        </a>
+                    </td>
                 </tr>
                 {% else %}
-                <tr><td colspan="6" style="text-align:center; color: #a0aec0;">Отзывов пока нет</td></tr>
+                <tr><td colspan="7" style="text-align:center; color: #a0aec0;">Отзывов пока нет</td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -373,6 +419,47 @@ async def view_feedback_admin():
     </html>
     '''
     return await render_template_string(html, rows=rows)
+
+
+@app.route('/admin/feedback/export')
+async def export_feedback_csv():
+    """Выгрузка отзывов в CSV"""
+    if not check_auth(request.headers.get('Authorization')):
+        return get_auth_response()
+
+    if not db_pool:
+        return "База данных недоступна", 500
+
+    async with db_pool.acquire() as conn:
+        records = await conn.fetch("SELECT * FROM feedbacks ORDER BY id DESC")
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['ID', 'Дата (UTC)', 'Категория', 'Оценка', 'Лайк/Дизлайк', 'Комментарий'])
+    
+    for r in records:
+        writer.writerow([r['id'], r['created_at'], r['category'], r['rating'], r['thumb'], r['comment']])
+
+    csv_bytes = output.getvalue().encode('utf-8-sig')
+    return Response(
+        csv_bytes,
+        mimetype='text/csv',
+        headers={'Content-Disposition': 'attachment; filename=feedbacks.csv'}
+    )
+
+
+@app.route('/admin/feedback/delete/<int:feedback_id>')
+async def delete_feedback(feedback_id):
+    """Удаление отзыва по ID"""
+    if not check_auth(request.headers.get('Authorization')):
+        return get_auth_response()
+
+    if db_pool:
+        async with db_pool.acquire() as conn:
+            await conn.execute("DELETE FROM feedbacks WHERE id = $1", feedback_id)
+            logger.info(f"Удален отзыв ID {feedback_id}")
+
+    return jsonify({"status": "deleted"}), 302, {'Location': '/admin/feedback'}
 
 
 if __name__ == '__main__':
